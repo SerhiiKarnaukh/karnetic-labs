@@ -6,7 +6,7 @@ run:
 	docker-compose up -d
 
 build:
-	docker-compose up -d --build
+	docker-compose up -d --build && docker image prune -f
 
 test:
 	docker-compose run --rm app sh -c "flake8"
@@ -37,6 +37,8 @@ super:
 	docker-compose run --rm app sh -c "python manage.py createsuperuser"
 
 clean:
+	docker image prune -f
+	docker volume prune -f
 	docker builder prune --all -f
 
 # before install Poetry
