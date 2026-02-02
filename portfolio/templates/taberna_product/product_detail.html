@@ -12,7 +12,9 @@
                         <img class="card-img img-fluid"
                              src="{{ product.image.url }}"
                              alt="{{ product.name }}"
-                             id="product-detail" />
+                             id="product-detail"
+                             height="auto"
+                             width="auto" />
                     </div>
                     <div class="row">
                         <!--Start Controls-->
@@ -38,7 +40,9 @@
                                                     <a href="{{ i.image.url }}">
                                                         <img class="card-img img-fluid"
                                                              src="{{ i.image.url }}"
-                                                             alt="Product Image 4" />
+                                                             alt="Product Image 4"
+                                                             height="auto"
+                                                             width="auto" />
                                                     </a>
                                                 </div>
                                             {% endfor %}
@@ -264,39 +268,70 @@
                     <h4>Related Products</h4>
                 </div>
                 <!--Start Carousel Wrapper-->
-                <div id="carousel-related-product" data-aos="fade-up">
-                    {% for related_product in related_products %}
-                        <div class="p-2 pb-3">
-                            <div class="product-wap card rounded-0">
-                                <div class="card rounded-0">
-                                    <img class="card-img rounded-0 img-fluid"
-                                         src="{{ related_product.image.url }}" />
-                                    <div class="card-img-overlay rounded-0 product-overlay d-flex align-items-center justify-content-center">
-                                        <ul class="list-unstyled">
-                                            <li>
-                                                <a class="btn btn-success text-white mt-2"
-                                                   href="{{ related_product.get_absolute_url }}"><i class="far fa-eye"></i></a>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <a href="{{ related_product.get_absolute_url }}"
-                                       class="h3 text-decoration-none">{{ related_product.name }}</a>
-                                    <ul class="list-unstyled d-flex justify-content-center mb-1 rating-star">
-                                        <li>
-                                            <i class="fa fa-star{% if related_product.averageReview < 0.5 %} text-light{% elif related_product.averageReview >= 0.5 and related_product.averageReview < 1 %}-half-alt {% endif %}"></i>
-                                            <i class="fa fa-star{% if related_product.averageReview < 1.5 %} text-light{% elif related_product.averageReview >= 1.5 and related_product.averageReview < 2 %}-half-alt {% endif %}"></i>
-                                            <i class="fa fa-star{% if related_product.averageReview < 2.5 %} text-light{% elif related_product.averageReview >= 2.5 and related_product.averageReview < 3 %}-half-alt {% endif %}"></i>
-                                            <i class="fa fa-star{% if related_product.averageReview < 3.5 %} text-light{% elif related_product.averageReview >= 3.5 and related_product.averageReview < 4 %}-half-alt {% endif %}"></i>
-                                            <i class="fa fa-star{% if related_product.averageReview < 4.5 %} text-light{% elif related_product.averageReview >= 4.5 and related_product.averageReview < 5 %}-half-alt {% endif %}"></i>
-                                        </li>
-                                    </ul>
-                                    <p class="text-center mb-0">${{ related_product.price }}</p>
+                <div id="carousel-related-product"
+                     class="carousel slide"
+                     data-bs-ride="carousel"
+                     data-aos="fade-up">
+                    <div class="carousel-inner">
+                        {% for chunk in related_products_chunks %}
+                            <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                <div class="row justify-content-center">
+                                    {% for related_product in chunk %}
+                                        <div class="col-3 mb-3">
+                                            <div class="product-wap card rounded-0 h-100">
+                                                <div class="card rounded-0">
+                                                    <img class="card-img rounded-0 img-fluid"
+                                                         src="{{ related_product.image.url }}"
+                                                         alt="{{ related_product.name }}"
+                                                         height="auto"
+                                                         width="auto" />
+                                                    <div class="card-img-overlay rounded-0 product-overlay d-flex align-items-center justify-content-center">
+                                                        <ul class="list-unstyled">
+                                                            <li>
+                                                                <a class="btn btn-success text-white mt-2"
+                                                                   href="{{ related_product.get_absolute_url }}"><i class="far fa-eye"></i></a>
+                                                            </li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                                <div class="card-body">
+                                                    <a href="{{ related_product.get_absolute_url }}"
+                                                       class="h3 text-decoration-none">{{ related_product.name }}</a>
+                                                    <ul class="list-unstyled d-flex justify-content-center mb-1 rating-star">
+                                                        <li>
+                                                            <i class="fa fa-star{% if related_product.averageReview < 0.5 %} text-light{% elif related_product.averageReview >= 0.5 and related_product.averageReview < 1 %}-half-alt {% endif %}"></i>
+                                                            <i class="fa fa-star{% if related_product.averageReview < 1.5 %} text-light{% elif related_product.averageReview >= 1.5 and related_product.averageReview < 2 %}-half-alt {% endif %}"></i>
+                                                            <i class="fa fa-star{% if related_product.averageReview < 2.5 %} text-light{% elif related_product.averageReview >= 2.5 and related_product.averageReview < 3 %}-half-alt {% endif %}"></i>
+                                                            <i class="fa fa-star{% if related_product.averageReview < 3.5 %} text-light{% elif related_product.averageReview >= 3.5 and related_product.averageReview < 4 %}-half-alt {% endif %}"></i>
+                                                            <i class="fa fa-star{% if related_product.averageReview < 4.5 %} text-light{% elif related_product.averageReview >= 4.5 and related_product.averageReview < 5 %}-half-alt {% endif %}"></i>
+                                                        </li>
+                                                    </ul>
+                                                    <p class="text-center mb-0">${{ related_product.price }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
                                 </div>
                             </div>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
+                    <!-- Carousel Controls -->
+                    <button class="carousel-control-prev"
+                            type="button"
+                            data-bs-target="#carousel-related-product"
+                            data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon bg-dark rounded-circle"
+                              aria-hidden="true"></span>
+                        <span class="visually-hidden">Previous</span>
+                    </button>
+                    <button class="carousel-control-next"
+                            type="button"
+                            data-bs-target="#carousel-related-product"
+                            data-bs-slide="next">
+                        <span class="carousel-control-next-icon bg-dark rounded-circle"
+                              aria-hidden="true"></span>
+                        <span class="visually-hidden">Next</span>
+                    </button>
                 </div>
             </div>
         </section>

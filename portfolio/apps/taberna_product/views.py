@@ -36,8 +36,19 @@ class ProductDetail(DetailView):
         context = super().get_context_data(**kwargs)
         product = self.get_object()
         category = product.category
-        context['related_products'] = Product.objects.filter(
+
+        related_products = Product.objects.filter(
             category=category).exclude(id=product.id)
+
+        related_products_paginator = Paginator(related_products, 3)
+        related_products_chunks = []
+        for page in related_products_paginator.page_range:
+            current_page = related_products_paginator.get_page(page)
+            related_products_chunks.append(current_page.object_list)
+
+        context['related_products'] = related_products
+        context['related_products_chunks'] = related_products_chunks
+
         context['reviews'] = ReviewRating.objects.filter(
             product__slug=product.slug, status=True)
 

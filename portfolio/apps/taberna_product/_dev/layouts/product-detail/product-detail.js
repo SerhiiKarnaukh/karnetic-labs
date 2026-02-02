@@ -32,36 +32,19 @@ function init() {
     $(this).addClass('btn-secondary')
     return false
   })
-  $('#carousel-related-product').slick({
-    infinite: true,
-    arrows: false,
-    slidesToShow: 4,
-    slidesToScroll: 3,
-    dots: true,
-    responsive: [
-      {
-        breakpoint: 1024,
-        settings: {
-          slidesToShow: 3,
-          slidesToScroll: 3,
-        },
-      },
-      {
-        breakpoint: 600,
-        settings: {
-          slidesToShow: 2,
-          slidesToScroll: 3,
-        },
-      },
-      {
-        breakpoint: 480,
-        settings: {
-          slidesToShow: 2,
-          slidesToScroll: 3,
-        },
-      },
-    ],
-  })
+  const carousel = $('#carousel-related-product')
+  if (carousel.length) {
+    let maxHeight = 0
+    carousel.find('.carousel-item').each(function () {
+      const itemHeight = $(this).outerHeight()
+      if (itemHeight > maxHeight) {
+        maxHeight = itemHeight
+      }
+    })
+    carousel
+      .find('.carousel-inner, .carousel-item')
+      .css('min-height', maxHeight + 'px')
+  }
 }
 
 export default init
