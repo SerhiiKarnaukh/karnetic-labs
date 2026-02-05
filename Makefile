@@ -80,3 +80,32 @@ update_front_core:
 	npm run b && \
 	rm -rf node_modules && \
 	cd /d/projects/test-applications-manager-django
+
+db-remote-backup:
+	docker-compose -f docker-compose.deploy.yml exec db dropdb -U $(SQL_USER) $(SQL_DATABASE)
+	docker-compose -f docker-compose.deploy.yml exec db createdb -U $(SQL_USER) $(SQL_DATABASE)
+	docker-compose -f docker-compose.deploy.yml exec -T db psql -U $(SQL_USER) $(SQL_DATABASE) < ../db_backup.sql
+
+########################For Remote Host Makefile##############################
+prod:
+	cd gst-back && \
+	git pull origin && \
+	docker-compose -f docker-compose.deploy.yml down && \
+	docker-compose -f docker-compose.deploy.yml build && \
+	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py makemigrations" && \
+	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py migrate" && \
+	docker-compose -f docker-compose.deploy.yml up -d && \
+	cd .. && docker system prune -a --volumes -f
+
+dev:
+	cd gst-back && \
+	git pull origin development && \
+	docker-compose -f docker-compose.deploy.yml down && \
+	docker-compose -f docker-compose.deploy.yml build && \
+	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py makemigrations" && \
+	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py migrate" && \
+	docker-compose -f docker-compose.deploy.yml up -d && \
+	cd .. && docker system prune -a --volumes -f
+
+db-backup:
+	cd gst-back && $(MAKE) db-remote-backup
