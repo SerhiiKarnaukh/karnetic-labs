@@ -81,14 +81,14 @@ update_front_core:
 	rm -rf node_modules && \
 	cd /d/projects/test-applications-manager-django
 
-db-remote-backup:
+db-remote-backup-restore:
 	docker-compose -f docker-compose.deploy.yml exec db dropdb -U $(SQL_USER) $(SQL_DATABASE)
 	docker-compose -f docker-compose.deploy.yml exec db createdb -U $(SQL_USER) $(SQL_DATABASE)
 	docker-compose -f docker-compose.deploy.yml exec -T db psql -U $(SQL_USER) $(SQL_DATABASE) < ../db_backup.sql
 
 ########################For Remote Host Makefile##############################
 prod:
-	cd gst-back && \
+	cd test-applications-manager && \
 	git pull origin && \
 	docker-compose -f docker-compose.deploy.yml down && \
 	docker-compose -f docker-compose.deploy.yml build && \
@@ -98,7 +98,7 @@ prod:
 	cd .. && docker system prune -a --volumes -f
 
 dev:
-	cd gst-back && \
+	cd test-applications-manager && \
 	git pull origin development && \
 	docker-compose -f docker-compose.deploy.yml down && \
 	docker-compose -f docker-compose.deploy.yml build && \
@@ -107,5 +107,17 @@ dev:
 	docker-compose -f docker-compose.deploy.yml up -d && \
 	cd .. && docker system prune -a --volumes -f
 
-db-backup:
-	cd gst-back && $(MAKE) db-remote-backup
+proxy:
+	cd test-applications-manager && \
+	docker-compose -f docker-compose.deploy.yml down && \
+	docker volume rm $$(docker volume ls -qf name=certbot-web) && \
+	docker volume rm $$(docker volume ls -qf name=proxy-dhparams) && \
+	docker volume rm $$(docker volume ls -qf name=certbot-certs) && \
+	docker-compose -f docker-compose.deploy.yml run --rm certbot /opt/certify-init.sh && \
+	docker-compose -f docker-compose.deploy.yml down && \
+	docker-compose -f docker-compose.deploy.yml build && \
+	docker-compose -f docker-compose.deploy.yml up -d && \
+	cd .. && docker system prune -a --volumes -f
+
+db-backup-restore:
+	cd test-applications-manager && $(MAKE) db-remote-backup-restore
