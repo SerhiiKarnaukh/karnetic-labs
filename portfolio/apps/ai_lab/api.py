@@ -1,4 +1,5 @@
 import os
+import uuid
 import requests
 import json
 from base64 import b64decode
@@ -186,10 +187,9 @@ class AiLabVisionImagesUploadView(APIView):
             extension = os.path.splitext(image.name)[1]
             full_filename = f"{filename}{extension}"
 
-            counter = 1
-            while default_storage.exists(os.path.join('vision_images', full_filename)):
-                full_filename = f"{filename}-{counter}{extension}"
-                counter += 1
+            if default_storage.exists(os.path.join('vision_images', full_filename)):
+                short_hash = uuid.uuid4().hex[:8]
+                full_filename = f"{filename}-{short_hash}{extension}"
 
             filepath = os.path.join('vision_images', full_filename)
             full_file_path = os.path.join(settings.MEDIA_ROOT, filepath)
@@ -204,6 +204,28 @@ class AiLabVisionImagesUploadView(APIView):
             saved_image_urls.append(file_url)
 
         return Response({"uploaded_images": saved_image_urls})
+
+
+class AiLabVisionImageDeleteView(APIView):
+    permission_classes = [AllowAny]
+
+    def delete(self, request):
+        filename = request.data.get("filename")
+        if not filename:
+            return Response({"error": "Filename is required."}, status=400)
+
+        # Prevent path traversal attacks
+        safe_filename = os.path.basename(filename)
+        if safe_filename != filename:
+            return Response({"error": "Invalid filename."}, status=400)
+
+        file_path = os.path.join(settings.MEDIA_ROOT, 'vision_images', safe_filename)
+
+        if not os.path.exists(file_path):
+            return Response({"error": "File not found."}, status=404)
+
+        os.remove(file_path)
+        return Response({"message": f"File '{safe_filename}' deleted successfully."})
 
 
 class AiLabRealtimeTokenView(APIView):
