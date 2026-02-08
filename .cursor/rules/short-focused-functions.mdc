@@ -1,0 +1,58 @@
+---
+description: Keep functions short and focused for readability and maintainability
+alwaysApply: true
+---
+
+# Short, Focused Functions
+
+Every function should do **one thing well**. Aim for functions that are easy to read in a single screen view.
+
+## Guidelines
+
+- **Max ~20 lines** of logic per function (excluding blank lines and comments). If a function grows beyond this, extract helpers.
+- **Single responsibility**: a function should have one clear purpose described by its name.
+- **One level of abstraction**: avoid mixing high-level orchestration with low-level details in the same function.
+- **Early returns** over deep nesting — reduce indentation levels to keep flow obvious.
+- **Limit parameters**: prefer 3 or fewer parameters. If more are needed, group them into an options object or dedicated type.
+
+## Refactoring Signals
+
+Extract a new function when you notice:
+- A block of code preceded by a comment explaining what it does
+- Repeated logic across multiple functions
+- Nested `if`/`for`/`try` blocks deeper than 2 levels
+- A function name that requires "and" or "or" to describe its behavior
+
+## Examples
+
+```python
+# BAD — too many responsibilities
+def process_order(order):
+    if not order.items:
+        raise ValueError("Empty order")
+    total = 0
+    for item in order.items:
+        price = item.price * item.quantity
+        if item.discount:
+            price -= price * item.discount
+        total += price
+    order.total = total
+    db.save(order)
+    send_confirmation_email(order)
+
+# GOOD — each step is its own focused function
+def process_order(order):
+    validate_order(order)
+    order.total = calculate_total(order.items)
+    db.save(order)
+    send_confirmation_email(order)
+
+def calculate_total(items):
+    return sum(calculate_item_price(item) for item in items)
+
+def calculate_item_price(item):
+    price = item.price * item.quantity
+    if item.discount:
+        price -= price * item.discount
+    return price
+```
