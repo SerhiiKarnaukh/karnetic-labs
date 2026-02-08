@@ -1,6 +1,6 @@
 # Social Network DRF
 
-### App on AWS: <https://django.karnaukh-webdev.com/category/django/social-network-drf/>
+### App on AWS: <https://karnetic-labs.com/category/django/social-network-drf/>
 
 ### App on Firebase: <https://karnaukh-vue-test.web.app/social/home>
 
@@ -407,7 +407,7 @@ Both consumers use Django Channels with Redis as the channel layer. Authenticati
 The Social Network frontend is a separate **Vue.js** application deployed on Firebase.
 
 - **Vue.js frontend**: <https://karnaukh-vue-test.web.app/social/home>
-- **Project page**: <https://django.karnaukh-webdev.com/category/vuejs/social-network-vuejs/>
+- **Project page**: <https://karnetic-labs.com/category/vuejs/social-network-vuejs/>
 
 The frontend consumes the REST API via JWT authentication and connects to WebSocket endpoints for real-time chat and notifications.
 

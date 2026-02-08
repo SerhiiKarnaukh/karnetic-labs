@@ -1,6 +1,6 @@
 # Test Applications Manager
 
-### App on AWS: <https://django.karnaukh-webdev.com/>
+### App on AWS: <https://karnetic-labs.com/>
 
 ![TAM screenshot](https://github.com/SerhiiKarnaukh/karnetic-labs/blob/main/tam.jpg)
 
@@ -483,4 +483,4 @@ The application is deployed on **AWS** with Docker Compose:
 4. Nginx serves the application over HTTPS with Let's Encrypt SSL
 5. For initial SSL setup, run `make proxy` to obtain certificates
 
-Production URL: **<https://django.karnaukh-webdev.com/>**
+Production URL: **<https://karnetic-labs.com/>**
