@@ -2,7 +2,7 @@
 
 ### App on AWS: <https://django.karnaukh-webdev.com/>
 
-![TAM screenshot](https://github.com/SerhiiKarnaukh/test-applications-manager/blob/main/tam.jpg)
+![TAM screenshot](https://github.com/SerhiiKarnaukh/karnetic-labs/blob/main/tam.jpg)
 
 ---
 

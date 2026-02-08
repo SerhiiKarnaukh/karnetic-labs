@@ -273,6 +273,8 @@ All Taberna URLs are mounted under the following prefixes in the root `urls.py`:
 
 ## REST API
 
+![Taberna DRF screenshot](https://github.com/SerhiiKarnaukh/karnetic-labs/blob/main/portfolio/apps/taberna_product/taberna_drf.jpg)
+
 All API endpoints use Django REST Framework and return JSON.
 
 ### Products API
