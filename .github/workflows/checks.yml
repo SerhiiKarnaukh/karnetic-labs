@@ -1,8 +1,9 @@
 ---
 name: Checks
 
-on: [push]
-
+on:
+    push:
+        branches: [main]
 jobs:
     test-lint:
         name: Test and Lint
@@ -28,3 +29,23 @@ jobs:
               run: docker compose run --rm app sh -c "python manage.py wait_for_db && python manage.py test"
             - name: Lint
               run: docker compose run --rm app sh -c "flake8"
+
+    deploy:
+        needs: test-lint
+        runs-on: ubuntu-latest
+        if: success()
+        concurrency:
+            group: production-deployment
+            cancel-in-progress: false
+
+        steps:
+            - name: Deploy to EC2
+              uses: appleboy/ssh-action@master
+              with:
+                  host: ${{ secrets.EC2_HOST }}
+                  username: ${{ secrets.EC2_USER }}
+                  key: ${{ secrets.EC2_SSH_KEY }}
+                  passphrase: ${{ secrets.EC2_SSH_PASSPHRASE }}
+                  script: |
+                      cd karnetic-labs
+                      make prod
