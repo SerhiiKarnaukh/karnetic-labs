@@ -68,7 +68,7 @@ update_front_taberna:
 	npm install && \
 	npm run b && \
 	rm -rf node_modules && \
-	cd /d/projects/test-applications-manager-django
+	cd /d/projects/karnetic-labs
 
 update_front_core:
 	cd portfolio/apps/core/_dev && \
@@ -79,15 +79,30 @@ update_front_core:
 	npm install && \
 	npm run b && \
 	rm -rf node_modules && \
-	cd /d/projects/test-applications-manager-django
+	cd /d/projects/karnetic-labs
 
 ########################For Remote Host Makefile##############################
 #When making changes to this block, you must first run:
 #1.connect to your server with ssh
 #2. git pull origin|development command on the server
 #3. make prod|dev command on the server
+build-front-end:
+	cd portfolio/apps/taberna_product/_dev && \
+	rm -rf node_modules && \
+	npm install && \
+	NODE_OPTIONS="--max-old-space-size=1024" npm run b -- --progress=profile && \
+	rm -rf node_modules && \
+	cd ~/karnetic-labs &&\
+	cd portfolio/apps/core/_dev &&\
+	rm -rf node_modules && \
+	npm install && \
+	NODE_OPTIONS="--max-old-space-size=1024" npm run b -- --progress=profile && \
+	rm -rf node_modules && \
+	cd ~/karnetic-labs
+
 deploy:
 	docker-compose -f docker-compose.deploy.yml down
+	$(MAKE) build-front-end
 	docker-compose -f docker-compose.deploy.yml build
 	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py makemigrations"
 	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py migrate"
