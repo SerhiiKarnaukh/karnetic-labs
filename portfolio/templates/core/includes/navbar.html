@@ -38,13 +38,17 @@
             <div class="col-12 text-center">
                 <a href="{% url 'core:index' %}">
                     <h1 class="display-4 text-white">Karnaukh-WebDev</h1>
-                    {% if request.path == '/' %}<p class="header-subtitle text-white-50 mb-0">Full Stack Software Engineering</p>{% endif %}
                 </a>
-                {% if 'category' in request.path %}<h4 class="display-6 text-white">{{ core_title }}</h4>{% endif %}
-                {% if 'tag' in request.path %}
-                    <h3 class="text-white">
-                        <span class="brand-color me-2">Tag:</span>{{ core_title }}
-                    </h3>
+                {% if core_title and request.path != '/' %}
+                    {% if 'category' in request.path %}
+                        <h4 class="display-6 text-white">{{ core_title }}</h4>
+                    {% elif 'tag' in request.path %}
+                        <h3 class="text-white">
+                            <span class="brand-color me-2">Tag:</span>{{ core_title }}
+                        </h3>
+                    {% endif %}
+                {% else %}
+                    <p class="header-subtitle text-white-50 mb-0">Full Stack Software Engineering</p>
                 {% endif %}
             </div>
         </div>
