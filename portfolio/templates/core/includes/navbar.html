@@ -37,7 +37,8 @@
         <div class="row py-5">
             <div class="col-12 text-center">
                 <a href="{% url 'core:index' %}">
-                    <h1 class="display-4 text-white ">Karnaukh-WebDev</h1>
+                    <h1 class="display-4 text-white">Karnaukh-WebDev</h1>
+                    <p class="header-subtitle text-white-50 mb-0">Full Stack Software Engineering</p>
                 </a>
                 {% if 'category' in request.path %}<h4 class="display-6 text-white">{{ core_title }}</h4>{% endif %}
                 {% if 'tag' in request.path %}

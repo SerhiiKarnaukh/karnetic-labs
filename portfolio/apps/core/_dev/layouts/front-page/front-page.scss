@@ -27,6 +27,13 @@
             url(./img/header.jpg) center center no-repeat;
         background-size: cover;
     }
+
+    .header-subtitle {
+        font-family: $content-font;
+        font-size: 1.15rem;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+    }
 }
 
 .portfolio-list {
