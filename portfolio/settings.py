@@ -69,7 +69,7 @@ CORS_ALLOWED_ORIGINS.extend(
     ))
 
 CORS_ORIGIN_WHITELIST = [
-    'https://karneticlabs.com'
+    'https://karnaukh-webdev.com'
     # Add any other trusted domains here
 ]
 
@@ -84,12 +84,12 @@ CORS_ALLOW_METHODS = [
 
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://karneticlabs.com'
+    'https://karnaukh-webdev.com'
 ]
 
 
 CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_DOMAIN = '.karneticlabs.com'
+CSRF_COOKIE_DOMAIN = '.karnaukh-webdev.com'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
