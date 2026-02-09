@@ -81,43 +81,39 @@ update_front_core:
 	rm -rf node_modules && \
 	cd /d/projects/test-applications-manager-django
 
-db-remote-backup-restore:
+########################For Remote Host Makefile##############################
+#When making changes to this block, you must first run:
+#1.connect to your server with ssh
+#2. git pull origin|development command on the server
+#3. make prod|dev command on the server
+deploy:
+	docker-compose -f docker-compose.deploy.yml down
+	docker-compose -f docker-compose.deploy.yml build
+	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py makemigrations"
+	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py migrate"
+	docker-compose -f docker-compose.deploy.yml up -d
+	docker system prune -a --volumes -f
+
+prod:
+	git pull origin
+	$(MAKE) deploy
+
+dev:
+	git pull origin development
+	$(MAKE) deploy
+
+proxy:
+	docker-compose -f docker-compose.deploy.yml down
+	docker volume rm $$(docker volume ls -qf name=certbot-web)
+	docker volume rm $$(docker volume ls -qf name=proxy-dhparams)
+	docker volume rm $$(docker volume ls -qf name=certbot-certs)
+	docker-compose -f docker-compose.deploy.yml run --rm certbot /opt/certify-init.sh
+	docker-compose -f docker-compose.deploy.yml down
+	docker-compose -f docker-compose.deploy.yml build
+	docker-compose -f docker-compose.deploy.yml up -d
+	docker system prune -a --volumes -f
+
+db-backup-restore:
 	docker-compose -f docker-compose.deploy.yml exec db dropdb -U $(SQL_USER) $(SQL_DATABASE)
 	docker-compose -f docker-compose.deploy.yml exec db createdb -U $(SQL_USER) $(SQL_DATABASE)
 	docker-compose -f docker-compose.deploy.yml exec -T db psql -U $(SQL_USER) $(SQL_DATABASE) < ../db_backup.sql
-
-########################For Remote Host Makefile##############################
-prod:
-	cd test-applications-manager && \
-	git pull origin && \
-	docker-compose -f docker-compose.deploy.yml down && \
-	docker-compose -f docker-compose.deploy.yml build && \
-	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py makemigrations" && \
-	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py migrate" && \
-	docker-compose -f docker-compose.deploy.yml up -d && \
-	cd .. && docker system prune -a --volumes -f
-
-dev:
-	cd test-applications-manager && \
-	git pull origin development && \
-	docker-compose -f docker-compose.deploy.yml down && \
-	docker-compose -f docker-compose.deploy.yml build && \
-	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py makemigrations" && \
-	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py migrate" && \
-	docker-compose -f docker-compose.deploy.yml up -d && \
-	cd .. && docker system prune -a --volumes -f
-
-proxy:
-	cd test-applications-manager && \
-	docker-compose -f docker-compose.deploy.yml down && \
-	docker volume rm $$(docker volume ls -qf name=certbot-web) && \
-	docker volume rm $$(docker volume ls -qf name=proxy-dhparams) && \
-	docker volume rm $$(docker volume ls -qf name=certbot-certs) && \
-	docker-compose -f docker-compose.deploy.yml run --rm certbot /opt/certify-init.sh && \
-	docker-compose -f docker-compose.deploy.yml down && \
-	docker-compose -f docker-compose.deploy.yml build && \
-	docker-compose -f docker-compose.deploy.yml up -d && \
-	cd .. && docker system prune -a --volumes -f
-
-db-backup-restore:
-	cd test-applications-manager && $(MAKE) db-remote-backup-restore
