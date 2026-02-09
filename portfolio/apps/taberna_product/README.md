@@ -1,6 +1,6 @@
 # Taberna eCommerce
 
-### App on AWS: <https://karnetic-labs.com/taberna-store/>
+### App on AWS: <https://karnaukh-webdev.com/taberna-store/>
 
 ![Taberna screenshot](https://github.com/SerhiiKarnaukh/karnetic-labs/blob/main/portfolio/apps/taberna_product/taberna.jpg)
 
