@@ -1,0 +1,857 @@
+# Karnetic-Labs Improvement Plan
+
+> Comprehensive plan for addressing all identified issues across the codebase.
+> Each task has a priority (P0-P3), estimated effort, affected files, and implementation steps.
+
+---
+
+## Priority Legend
+
+| Priority | Meaning | Timeline |
+|----------|---------|----------|
+| **P0** | Critical -- security vulnerabilities, data loss risk | Fix immediately |
+| **P1** | High -- data integrity, silent bugs, broken features | Fix this sprint |
+| **P2** | Medium -- architecture debt, maintainability, DRY | Plan for next sprint |
+| **P3** | Low -- code style, cleanup, minor improvements | Backlog |
+
+---
+
+## Priority Table (All Tasks)
+
+| # | Task | Priority | Effort | Category |
+|---|------|----------|--------|----------|
+| 1 | Remove `time.sleep(10)` from request handlers | **P0** | S | Security |
+| 2 | Add authentication to AI Lab endpoints | **P0** | S | Security |
+| 3 | Fix open redirect in `redirect_to_next_or_dashboard` | **P0** | S | Security |
+| 4 | Add password validators to `resetPassword` | **P0** | S | Security |
+| 5 | Replace `assert` with proper validation in donation signal | **P0** | S | Security |
+| 6 | Move hardcoded Stripe price ID to settings/model | **P0** | S | Security |
+| 7 | Fix `submit_review` missing return on invalid form | **P1** | S | Bug |
+| 8 | Fix friendship request duplicate-check logic | **P1** | S | Bug |
+| 9 | Replace `FloatField` with `DecimalField` for money fields | **P1** | M | Data Integrity |
+| 10 | Fix `Payment.amount_paid` from `CharField` to `DecimalField` | **P1** | S | Data Integrity |
+| 11 | Use `F()` expressions for all counter updates | **P1** | M | Data Integrity |
+| 12 | Fix `Account.last_login` (`auto_now_add` -> nullable/manual) | **P1** | S | Data Integrity |
+| 13 | Add `LOGGING` configuration, replace all `print()` | **P1** | M | Observability |
+| 14 | Fix `EMAIL_USE_TLS` string-to-boolean parsing | **P1** | S | Config |
+| 15 | Fix `CSRF_COOKIE_DOMAIN` to be environment-aware | **P1** | S | Config |
+| 16 | Remove `DEBUG=True` hardcoding in docker-compose | **P1** | S | Config |
+| 17 | Add `PermissionsMixin` to Account model | **P2** | M | Architecture |
+| 18 | Unify profile models (Account + UserProfile + Profile) | **P2** | L | Architecture |
+| 19 | Optimize context processors (caching + N+1 fix) | **P2** | M | Performance |
+| 20 | Add database indexes to commonly filtered fields | **P2** | S | Performance |
+| 21 | Extract star rating into a custom template tag | **P2** | S | DRY / Templates |
+| 22 | Fix broken HTML in `donation/base.html` | **P2** | S | Templates |
+| 23 | Add `extra_css` / `extra_js` blocks to base templates | **P2** | S | Templates |
+| 24 | Replace URL path sniffing with context variables | **P2** | M | Templates |
+| 25 | Write tests for payment flows (Stripe + PayPal) | **P2** | L | Testing |
+| 26 | Write tests for cart and order operations | **P2** | L | Testing |
+| 27 | Fix race condition in `generate_unique_username` | **P2** | S | Data Integrity |
+| 28 | Remove `makemigrations` from production deploy | **P2** | S | DevOps |
+| 29 | Stop exposing Redis port to host in docker-compose | **P2** | S | DevOps |
+| 30 | Trim `SIMPLE_JWT` config to non-default values only | **P3** | S | Cleanup |
+| 31 | Fix naming conventions (camelCase -> snake_case) | **P3** | M | Code Style |
+| 32 | Replace `dict(list()+list())` with dict merge | **P3** | S | Code Style |
+| 33 | Clean up unused code and boilerplate files | **P3** | S | Cleanup |
+| 34 | Fix Bootstrap 4/5 class mixing in templates | **P3** | M | Templates |
+| 35 | Fix duplicate HTML `id` in checkout form | **P3** | S | Templates |
+| 36 | Remove placeholder meta tags and Lorem Ipsum | **P3** | S | Templates |
+| 37 | Add accessibility improvements (labels, aria) | **P3** | M | Templates |
+
+---
+
+## Detailed Implementation Plan
+
+---
+
+### Phase 1: P0 -- Critical Security Fixes
+
+---
+
+#### Task 1: Remove `time.sleep(10)` from request handlers
+
+**Files:**
+- `portfolio/apps/taberna_orders/views.py` (line 77)
+- `portfolio/apps/donation/views.py` (line 64)
+
+**Problem:** Sleeping 10 seconds in a synchronous request handler blocks the web
+server thread. Under load this is a denial-of-service vulnerability.
+
+**Implementation:**
+1. Remove `import time` and `time.sleep(10)` from both files.
+2. For `order_complete`: instead of sleeping and hoping the PayPal IPN has arrived,
+   check if the order is already marked as paid. If not, show a "processing" page
+   that auto-refreshes via JavaScript (polling) or redirects with a short delay.
+3. For `payment_success` (donation): same approach -- render a "thank you" page
+   immediately. The PayPal IPN signal already handles the transaction creation
+   asynchronously.
+4. Alternative (better): create a Celery task that polls for payment confirmation
+   and use a simple AJAX endpoint the frontend can check.
+
+**Verification:** Load-test with 10+ concurrent requests to the order_complete URL
+and confirm the server stays responsive.
+
+---
+
+#### Task 2: Add authentication to AI Lab endpoints
+
+**Files:**
+- `portfolio/apps/ai_lab/api.py` (all view classes)
+
+**Problem:** All AI Lab views use `permission_classes = [AllowAny]`, exposing
+OpenAI API key usage, file upload, file deletion, and token generation to
+unauthenticated users.
+
+**Implementation:**
+1. Replace `permission_classes = [AllowAny]` with `permission_classes = [IsAuthenticated]`
+   on all views: `AiLabChatView`, `AiLabImageGeneratorView`,
+   `AiLabImageDownloadView`, `AiLabVoiceGeneratorView`,
+   `AiLabVisionImagesUploadView`, `AiLabVisionImageDeleteView`.
+2. For `AiLabRealtimeTokenView`, also remove `authentication_classes = []`.
+3. Consider adding rate limiting (e.g., `django-ratelimit` or DRF throttling)
+   to prevent abuse even by authenticated users.
+4. Update any frontend code that calls these endpoints to include authentication
+   headers (JWT Bearer token or session cookie).
+
+**Verification:** Call each endpoint without auth and confirm 401/403. Call with
+valid auth and confirm 200.
+
+---
+
+#### Task 3: Fix open redirect in `redirect_to_next_or_dashboard`
+
+**Files:**
+- `portfolio/apps/taberna_profiles/utils.py` (lines 50-63)
+
+**Problem:** The `next` parameter from the referer URL is passed directly to
+`redirect()` without validation. Attackers can redirect users to malicious sites.
+
+**Implementation:**
+1. Replace `import requests` with `from urllib.parse import urlparse, parse_qs`
+   (don't import the full HTTP library just for URL parsing).
+2. After extracting the `next` value, validate it is a relative URL:
+   ```python
+   from django.utils.http import url_has_allowed_host_and_scheme
+
+   def redirect_to_next_or_dashboard(request):
+       url = request.META.get('HTTP_REFERER', '')
+       try:
+           query = urlparse(url).query
+           params = parse_qs(query)
+           next_url = params.get('next', [None])[0]
+           if next_url and url_has_allowed_host_and_scheme(
+               next_url, allowed_hosts={request.get_host()}
+           ):
+               return redirect(next_url)
+       except Exception:
+           pass
+       return redirect('dashboard')
+   ```
+3. Remove `requests` from this file's imports entirely.
+
+**Verification:** Test with `?next=/dashboard` (should redirect), `?next=https://evil.com`
+(should go to dashboard), `?next=//evil.com` (should go to dashboard).
+
+---
+
+#### Task 4: Add password validators to `resetPassword`
+
+**Files:**
+- `portfolio/apps/taberna_profiles/views.py` (`resetPassword` function, line 182)
+
+**Problem:** Passwords are set via `user.set_password()` without running Django's
+`AUTH_PASSWORD_VALIDATORS`. Users can set trivially weak passwords.
+
+**Implementation:**
+1. Import `validate_password` from `django.contrib.auth.password_validation`.
+2. Before calling `set_password`, validate:
+   ```python
+   from django.contrib.auth.password_validation import validate_password
+   from django.core.exceptions import ValidationError
+
+   try:
+       validate_password(password, user=user)
+   except ValidationError as e:
+       for error in e.messages:
+           messages.error(request, error)
+       return redirect('resetPassword')
+   ```
+3. Apply the same fix to `change_password` (line 202) for consistency -- validate
+   `new_password` before setting it.
+
+**Verification:** Try resetting to "1" or "password" and confirm validation errors
+are shown.
+
+---
+
+#### Task 5: Replace `assert` with proper validation in donation signal
+
+**Files:**
+- `portfolio/apps/donation/signals.py` (line 27)
+
+**Problem:** `assert` statements are stripped in optimized Python (`-O` flag),
+silently disabling payment amount validation.
+
+**Implementation:**
+1. Replace the `assert` block with explicit validation:
+   ```python
+   if ipn_obj.mc_gross != myDonation.amount or ipn_obj.mc_currency != 'USD':
+       logger.warning(
+           "Invalid PayPal IPN: expected %s USD, got %s %s",
+           myDonation.amount, ipn_obj.mc_gross, ipn_obj.mc_currency
+       )
+       return
+   ```
+2. Replace `print()` calls with `logger.warning()` / `logger.error()` (depends
+   on Task 13 for logging setup, but can add a module-level logger immediately).
+3. The `choice(Donation.objects.all())` pattern is also suspicious -- it picks a
+   random donation to compare against. Review whether this logic is correct or if
+   the amount should be looked up by the IPN invoice field.
+
+**Verification:** Unit test with mismatched amounts -- confirm transaction is NOT
+created.
+
+---
+
+#### Task 6: Move hardcoded Stripe price ID to settings
+
+**Files:**
+- `portfolio/apps/donation/views.py` (line 45)
+
+**Problem:** `'price': 'price_1QmdgAG66aV2KD4hrcaEg29I'` is hardcoded in the view.
+
+**Implementation:**
+1. Add `STRIPE_DONATION_PRICE_ID` to `portfolio/settings.py`, reading from env:
+   ```python
+   STRIPE_DONATION_PRICE_ID = os.environ.get("STRIPE_DONATION_PRICE_ID")
+   ```
+2. In the view, replace the hardcoded value:
+   ```python
+   'price': settings.STRIPE_DONATION_PRICE_ID,
+   ```
+3. Add the env variable to `docker-compose.yml` and `.env.example`.
+
+**Verification:** Confirm the donation checkout still creates a valid Stripe session.
+
+---
+
+### Phase 2: P1 -- High Priority Bug & Integrity Fixes
+
+---
+
+#### Task 7: Fix `submit_review` missing return on invalid form
+
+**Files:**
+- `portfolio/apps/taberna_product/views.py` (`submit_review`, line 123)
+
+**Problem:** If the form is invalid in the `except ReviewRating.DoesNotExist` branch,
+the function returns `None`, causing a 500 error.
+
+**Implementation:**
+1. Add an `else` clause or a fallback `return redirect(url)` at the end:
+   ```python
+   except ReviewRating.DoesNotExist:
+       form = ReviewForm(request.POST)
+       if form.is_valid():
+           # ... existing save logic ...
+           return redirect(url)
+   # Fallback for invalid form or GET
+   return redirect(url)
+   ```
+
+**Verification:** Submit a review with empty required fields and confirm redirect
+instead of 500 error.
+
+---
+
+#### Task 8: Fix friendship request duplicate-check logic
+
+**Files:**
+- `portfolio/apps/social_profiles/api.py` (`send_friendship_request`, line 109)
+
+**Problem:** `if not check1 or not check2` should be `if not check1.exists() and
+not check2.exists()`. Current logic allows duplicate friendship requests.
+
+**Implementation:**
+1. Change the condition:
+   ```python
+   if not check1.exists() and not check2.exists():
+       friend_request = FriendshipRequest.objects.create(...)
+   ```
+
+**Verification:** Send a friendship request A->B, then try B->A. Confirm the
+second is blocked.
+
+---
+
+#### Task 9: Replace `FloatField` with `DecimalField` for money
+
+**Files:**
+- `portfolio/apps/taberna_orders/models.py` (Order.order_total, Order.tax,
+  OrderProduct.product_price)
+
+**Problem:** Float arithmetic causes rounding errors in financial calculations.
+
+**Implementation:**
+1. Change field definitions:
+   ```python
+   order_total = models.DecimalField(max_digits=10, decimal_places=2)
+   tax = models.DecimalField(max_digits=10, decimal_places=2)
+   # In OrderProduct:
+   product_price = models.DecimalField(max_digits=10, decimal_places=2)
+   ```
+2. Generate and apply migration.
+3. Review all code that assigns to these fields and ensure it passes `Decimal`
+   values, not floats.
+4. Update `taberna_orders/utils.py` functions that calculate totals.
+
+**Verification:** Create an order with items totaling $19.99 + 2% tax and confirm
+the tax is exactly $0.40, not $0.39999...
+
+---
+
+#### Task 10: Fix `Payment.amount_paid` from `CharField` to `DecimalField`
+
+**Files:**
+- `portfolio/apps/taberna_orders/models.py` (Payment model, line 10)
+
+**Implementation:**
+1. Change `amount_paid = models.CharField(max_length=100)` to
+   `amount_paid = models.DecimalField(max_digits=10, decimal_places=2)`.
+2. Generate migration. If existing data exists, add a data migration to convert
+   string values to decimals.
+3. Update `create_payment()` in `taberna_orders/utils.py` to pass a Decimal.
+
+---
+
+#### Task 11: Use `F()` expressions for all counter updates
+
+**Files:**
+- `portfolio/apps/social_posts/api.py` (likes_count, comments_count, posts_count)
+- `portfolio/apps/social_profiles/api.py` (friends_count)
+
+**Problem:** Read-modify-write on counters causes race conditions under concurrency.
+
+**Implementation:**
+1. Replace all patterns like:
+   ```python
+   post.likes_count = post.likes_count + 1
+   post.save()
+   ```
+   with:
+   ```python
+   Post.objects.filter(pk=pk).update(likes_count=F('likes_count') + 1)
+   ```
+2. For decrements (post_delete), use `F('posts_count') - 1`.
+3. Import `F` from `django.db.models`.
+4. Apply to: `post_like`, `post_create_comment`, `post_create`, `post_delete`,
+   `handle_request` (friends_count).
+
+**Verification:** Run concurrent like requests and confirm the count matches the
+actual number of Like objects.
+
+---
+
+#### Task 12: Fix `Account.last_login`
+
+**Files:**
+- `portfolio/apps/accounts/models.py` (line 67)
+
+**Implementation:**
+1. Change `last_login = models.DateTimeField(auto_now_add=True)` to
+   `last_login = models.DateTimeField(auto_now_add=True, null=True, blank=True)`.
+   Note: `AbstractBaseUser` already defines `last_login` -- check if you're
+   accidentally overriding it. If so, simply remove the field and let the parent
+   class handle it (it already supports `UPDATE_LAST_LOGIN`).
+2. Generate and apply migration.
+
+---
+
+#### Task 13: Add `LOGGING` configuration, replace all `print()`
+
+**Files:**
+- `portfolio/settings.py` (add LOGGING dict)
+- `portfolio/apps/donation/signals.py`
+- `portfolio/apps/taberna_orders/signals.py`
+- `portfolio/apps/taberna_orders/utils.py`
+- Any other file using `print()` for errors
+
+**Implementation:**
+1. Add to `settings.py`:
+   ```python
+   LOGGING = {
+       'version': 1,
+       'disable_existing_loggers': False,
+       'formatters': {
+           'verbose': {
+               'format': '{levelname} {asctime} {module} {message}',
+               'style': '{',
+           },
+       },
+       'handlers': {
+           'console': {
+               'class': 'logging.StreamHandler',
+               'formatter': 'verbose',
+           },
+       },
+       'root': {
+           'handlers': ['console'],
+           'level': 'INFO',
+       },
+   }
+   ```
+2. In each file, replace `print(...)` with:
+   ```python
+   import logging
+   logger = logging.getLogger(__name__)
+   # then:
+   logger.error("Error processing payment: %s", e)
+   ```
+
+---
+
+#### Task 14: Fix `EMAIL_USE_TLS` string-to-boolean parsing
+
+**Files:**
+- `portfolio/settings.py` (line 225)
+
+**Implementation:**
+1. Change:
+   ```python
+   EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS")
+   ```
+   to:
+   ```python
+   EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "False") == "True"
+   ```
+
+---
+
+#### Task 15: Fix `CSRF_COOKIE_DOMAIN` to be environment-aware
+
+**Files:**
+- `portfolio/settings.py` (lines 91-92)
+
+**Implementation:**
+1. Make it conditional:
+   ```python
+   CSRF_COOKIE_SECURE = not DEBUG
+   CSRF_COOKIE_DOMAIN = os.environ.get("CSRF_COOKIE_DOMAIN", None)
+   ```
+2. Set `CSRF_COOKIE_DOMAIN=.karnaukh-webdev.com` in the production `.env` only.
+
+---
+
+#### Task 16: Remove `DEBUG=True` hardcoding in docker-compose
+
+**Files:**
+- `docker-compose.yml` (lines 23, 83)
+
+**Implementation:**
+1. Change `DEBUG=True` to `DEBUG=${DEBUG}` in both `app` and `celery` services.
+2. Add `DEBUG=True` to `.env` for local development.
+
+---
+
+### Phase 3: P2 -- Architecture & Tech Debt
+
+---
+
+#### Task 17: Add `PermissionsMixin` to Account model
+
+**Files:**
+- `portfolio/apps/accounts/models.py`
+
+**Implementation:**
+1. Change `class Account(AbstractBaseUser):` to
+   `class Account(AbstractBaseUser, PermissionsMixin):`.
+2. Remove the custom `has_perm` and `has_module_perms` methods (PermissionsMixin
+   provides proper implementations).
+3. Generate and apply migration (adds `groups` and `user_permissions` M2M fields).
+4. Verify admin site still works.
+
+**Effort:** Medium (migration may require careful handling if data exists).
+
+---
+
+#### Task 18: Unify profile models
+
+**Files:**
+- `portfolio/apps/accounts/models.py`
+- `portfolio/apps/taberna_profiles/models.py`
+- `portfolio/apps/social_profiles/models.py`
+- All views/serializers/templates that reference these models
+
+**Problem:** Three separate models store overlapping user data with complex
+sync logic.
+
+**Implementation (multi-step):**
+1. **Phase A -- Design:** Decide on a single profile model. Recommended: extend
+   `Account` with all fields from `UserProfile` and `Profile`, or create one
+   `UserProfile` that all apps reference.
+2. **Phase B -- Migration:** Write a data migration that merges existing data.
+3. **Phase C -- Update references:** Update all views, serializers, templates,
+   and signals to use the unified model.
+4. **Phase D -- Remove old models:** Drop `UserProfile` and `Profile` after
+   verifying everything works.
+
+**Effort:** Large. Recommend doing this as a dedicated feature branch with thorough
+testing. This is the single biggest piece of technical debt in the project.
+
+---
+
+#### Task 19: Optimize context processors
+
+**Files:**
+- `portfolio/apps/core/context_processors.py`
+- `portfolio/apps/taberna_product/context_processors.py`
+- `portfolio/apps/taberna_cart/context_processors.py`
+
+**Implementation:**
+1. Fix N+1 in `menu_categories`: remove the manual loop and use the already-annotated count:
+   ```python
+   def menu_categories(request):
+       categories = Category.objects.annotate(
+           quantity=Count('projects')
+       ).filter(quantity__gt=0).order_by('title')
+       return {'core_menu_categories': categories}
+   ```
+2. Add caching with `django.core.cache`:
+   ```python
+   from django.core.cache import cache
+
+   def menu_categories(request):
+       categories = cache.get('core_menu_categories')
+       if categories is None:
+           categories = Category.objects.annotate(...)
+           cache.set('core_menu_categories', categories, timeout=300)
+       return {'core_menu_categories': categories}
+   ```
+3. Invalidate cache on Category/Project save (via signal).
+4. Skip DB queries for API requests in the cart counter:
+   ```python
+   def counter(request):
+       if request.path.startswith('/api/'):
+           return {}
+       # ... rest of logic
+   ```
+
+---
+
+#### Task 20: Add database indexes
+
+**Files:**
+- All `models.py` files
+
+**Implementation:**
+Add `db_index=True` to commonly filtered/sorted fields:
+- `Order.is_ordered`
+- `Order.order_number`
+- `Order.status`
+- `CartItem.is_active`
+- `Product.is_available`
+- `Product.slug`
+- `ReviewRating.status`
+- `Post.is_private`
+
+Generate one combined migration.
+
+---
+
+#### Task 21: Extract star rating into a custom template tag
+
+**Files:**
+- New: `portfolio/apps/taberna_product/templatetags/star_rating.py`
+- Update: `frontpage.html`, `product_detail.html`, `store.html`
+
+**Implementation:**
+1. Create an inclusion tag:
+   ```python
+   # templatetags/star_rating.py
+   from django import template
+   register = template.Library()
+
+   @register.inclusion_tag('taberna_product/includes/star_rating.html')
+   def star_rating(rating):
+       stars = []
+       for i in range(1, 6):
+           threshold = i - 0.5
+           if rating >= i:
+               stars.append('full')
+           elif rating >= threshold:
+               stars.append('half')
+           else:
+               stars.append('empty')
+       return {'stars': stars}
+   ```
+2. Create the template `taberna_product/includes/star_rating.html`.
+3. Replace all 6+ instances of the inline star logic with `{% star_rating product.averageReview %}`.
+
+---
+
+#### Task 22: Fix broken HTML in `donation/base.html`
+
+**Files:**
+- `portfolio/templates/donation/base.html`
+
+**Implementation:**
+1. Move `<title>DonateUA</title>` inside `<head>`.
+2. Move the `<style>` block from `<body>` into `<head>` or into the CSS bundle.
+3. Wrap the inline Stripe JS in a null-check:
+   ```javascript
+   const pay_now_button = document.querySelector('#stripe-checkout');
+   if (pay_now_button) {
+       pay_now_button.addEventListener('click', ...);
+   }
+   ```
+4. Extract the duplicated topbar into an `{% include %}` of the core navbar topbar.
+
+---
+
+#### Task 23: Add `extra_css` / `extra_js` blocks to base templates
+
+**Files:**
+- `portfolio/templates/core/base.html`
+- `portfolio/templates/taberna_store/base.html`
+
+**Implementation:**
+1. Add blocks in both base templates:
+   ```html
+   <!-- In <head>, after the CSS links -->
+   {% block extra_css %}{% endblock extra_css %}
+
+   <!-- Before </body>, after the JS scripts -->
+   {% block extra_js %}{% endblock extra_js %}
+   ```
+
+---
+
+#### Task 24: Replace URL path sniffing with context variables
+
+**Files:**
+- `portfolio/templates/core/index.html` (line 14)
+- `portfolio/templates/core/includes/navbar.html` (lines 42-49)
+- `portfolio/templates/core/includes/sidebar.html` (line 32)
+
+**Implementation:**
+1. In views, add explicit context variables like `is_search_page`, `page_type`,
+   `active_category`.
+2. In templates, replace `{% if 'search' in request.path %}` with
+   `{% if is_search_page %}`.
+3. Replace `{% if 'category' in request.path %}` with `{% if page_type == 'category' %}`.
+
+---
+
+#### Task 25-26: Write tests for payment flows and cart/order operations
+
+**Files:**
+- `portfolio/apps/taberna_orders/tests.py`
+- `portfolio/apps/taberna_cart/tests.py`
+- `portfolio/apps/donation/tests/`
+
+**Implementation:**
+1. **Payment tests:** Mock Stripe and PayPal APIs. Test webhook signature
+   validation, order state transitions, stock reduction, cart clearing.
+2. **Cart tests:** Test add/remove/update cart items, guest vs authenticated
+   cart merging, variation handling.
+3. **Order tests:** Test `place_order`, form validation, order number generation.
+
+**Effort:** Large but essential. Aim for at least happy-path coverage first.
+
+---
+
+#### Task 27: Fix race condition in `generate_unique_username`
+
+**Files:**
+- `portfolio/apps/accounts/models.py` (line 48)
+
+**Implementation:**
+1. Wrap in `select_for_update` or catch `IntegrityError` and retry:
+   ```python
+   from django.db import IntegrityError
+
+   def create_user(self, ...):
+       max_retries = 5
+       for attempt in range(max_retries):
+           try:
+               username = self.generate_unique_username(username_base)
+               user = self.model(username=username, ...)
+               user.save(using=self._db)
+               return user
+           except IntegrityError:
+               if attempt == max_retries - 1:
+                   raise
+   ```
+
+---
+
+#### Task 28: Remove `makemigrations` from production deploy
+
+**Files:**
+- `Makefile` (line 107)
+
+**Implementation:**
+1. Remove `python manage.py makemigrations` from the `deploy` target.
+2. Keep only `python manage.py migrate`.
+3. Document in README that migrations must be generated locally and committed.
+
+---
+
+#### Task 29: Stop exposing Redis port to host
+
+**Files:**
+- `docker-compose.yml` (lines 60-61)
+
+**Implementation:**
+1. Remove the `ports` section from the `redis` service.
+   Other containers connect via the Docker network (`redis:6379`), not via host ports.
+
+---
+
+### Phase 4: P3 -- Code Style & Cleanup
+
+---
+
+#### Task 30: Trim `SIMPLE_JWT` config
+
+**Files:**
+- `portfolio/settings.py` (lines 248-309)
+
+**Implementation:**
+1. Keep only non-default values:
+   ```python
+   SIMPLE_JWT = {
+       "ACCESS_TOKEN_LIFETIME": timedelta(minutes=6),
+       "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+   }
+   ```
+2. Remove the other ~50 lines that duplicate defaults.
+
+---
+
+#### Task 31: Fix naming conventions
+
+**Files:**
+- `portfolio/apps/taberna_profiles/views.py`
+- `portfolio/apps/taberna_profiles/urls.py`
+- `portfolio/templates/taberna_profiles/` (file renames)
+
+**Implementation:**
+1. Rename view functions:
+   - `forgotPassword` -> `forgot_password`
+   - `resetPassword` -> `reset_password`
+   - `resetpassword_validate` -> `reset_password_validate`
+2. Rename template files:
+   - `forgotPassword.html` -> `forgot_password.html`
+   - `resetPassword.html` -> `reset_password.html`
+3. Update URL patterns and all references.
+4. Rename model methods:
+   - `Product.averageReview` -> `Product.average_review`
+   - `Product.countReview` -> `Product.count_review`
+5. Update all template references to these methods.
+
+**Note:** Do this in a dedicated commit to keep the diff clean.
+
+---
+
+#### Task 32: Replace `dict(list()+list())` with dict merge
+
+**Files:**
+- `portfolio/apps/core/views.py` (line 28)
+- `portfolio/apps/taberna_product/views.py` (line 90)
+
+**Implementation:**
+1. Replace:
+   ```python
+   return dict(list(context.items()) + list(c_def.items()))
+   ```
+   with:
+   ```python
+   return {**context, **c_def}
+   ```
+
+---
+
+#### Task 33: Clean up unused code and boilerplate
+
+**Files:**
+- `portfolio/apps/accounts/views.py` (empty)
+- `portfolio/apps/social_posts/views.py` (commented-out only)
+- `portfolio/apps/ai_lab/views.py` (commented-out only)
+- `portfolio/settings.py` (commented `decouple` import)
+- `portfolio/apps/taberna_cart/models.py` (`__unicode__` method, `# Create your models here.`)
+- `portfolio/apps/taberna_profiles/models.py` (`# Create your models here.`)
+- `portfolio/templates/taberna_cart/checkout.html` (line 182 `<!-- </form> -->`)
+
+**Implementation:**
+1. Remove all `# Create your models here.` boilerplate comments.
+2. Remove commented-out imports.
+3. Replace `__unicode__` with `__str__` in CartItem.
+4. Remove the commented `</form>` in checkout.html.
+5. Either populate empty view files or delete them if unused.
+
+---
+
+#### Task 34: Fix Bootstrap 4/5 class mixing
+
+**Files:**
+- `portfolio/templates/taberna_cart/cart.html` (`input-group-prepend`, `input-group-append`)
+- `portfolio/templates/taberna_product/product_detail.html` (`sr-only`)
+
+**Implementation:**
+1. Replace `input-group-prepend` / `input-group-append` with direct children
+   of `input-group` (Bootstrap 5 pattern).
+2. Replace `sr-only` with `visually-hidden`.
+
+---
+
+#### Task 35: Fix duplicate HTML `id` in checkout form
+
+**Files:**
+- `portfolio/templates/taberna_cart/checkout.html` (lines 68, 78)
+
+**Implementation:**
+1. Change the second `id="c_address"` to `id="c_address_2"`.
+2. Update the corresponding `<label for="...">` attribute.
+
+---
+
+#### Task 36: Remove placeholder meta tags and Lorem Ipsum
+
+**Files:**
+- `portfolio/templates/core/base.html` (lines 11-12)
+- `portfolio/templates/taberna_store/base.html` (lines 11-12)
+- `portfolio/templates/taberna_store/frontpage.html` (all Lorem Ipsum text)
+
+**Implementation:**
+1. Replace placeholder meta with real content or make them dynamic via context/blocks.
+2. Replace Lorem Ipsum with actual copy, or remove it if the sections are not ready.
+3. Fix misleading social links in `taberna_store/includes/navbar.html` (all point
+   to LinkedIn).
+
+---
+
+#### Task 37: Add accessibility improvements
+
+**Files:**
+- `portfolio/templates/taberna_profiles/login.html` (missing `<label>` elements)
+- Various templates with icon-only links missing `aria-label`
+
+**Implementation:**
+1. Add `<label>` elements to login form inputs (or use `aria-label`).
+2. Add `aria-label` to all icon-only links/buttons.
+3. Ensure all images have meaningful `alt` text (not just repeated product names).
+
+---
+
+## Execution Order Summary
+
+```
+Sprint 1 (immediate):  Tasks 1-6   (P0 security)
+Sprint 2 (this week):  Tasks 7-16  (P1 bugs & config)
+Sprint 3 (next):        Tasks 17-29 (P2 architecture & tests)
+Sprint 4 (backlog):     Tasks 30-37 (P3 cleanup & style)
+```
+
+Each task should be implemented as a separate commit (or small PR) to keep
+changes reviewable and easy to revert if needed.
