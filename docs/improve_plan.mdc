@@ -21,7 +21,7 @@
 | # | Task | Priority | Effort | Category |
 |---|------|----------|--------|----------|
 | 1 | Remove `time.sleep(10)` from request handlers | **P0** | S | Security |
-| 2 | Add authentication to AI Lab endpoints | **P0** | S | Security |
+| ~~2~~ | ~~Add authentication to AI Lab endpoints~~ | ~~P0~~ | ~~S~~ | ~~Cancelled -- demo site, budget-capped OpenAI key, auto-cleanup of uploads~~ |
 | 3 | Fix open redirect in `redirect_to_next_or_dashboard` | **P0** | S | Security |
 | 4 | Add password validators to `resetPassword` | **P0** | S | Security |
 | 5 | Replace `assert` with proper validation in donation signal | **P0** | S | Security |
@@ -93,28 +93,11 @@ and confirm the server stays responsive.
 
 ---
 
-#### Task 2: Add authentication to AI Lab endpoints
+#### ~~Task 2: Add authentication to AI Lab endpoints~~ (CANCELLED)
 
-**Files:**
-- `portfolio/apps/ai_lab/api.py` (all view classes)
-
-**Problem:** All AI Lab views use `permission_classes = [AllowAny]`, exposing
-OpenAI API key usage, file upload, file deletion, and token generation to
-unauthenticated users.
-
-**Implementation:**
-1. Replace `permission_classes = [AllowAny]` with `permission_classes = [IsAuthenticated]`
-   on all views: `AiLabChatView`, `AiLabImageGeneratorView`,
-   `AiLabImageDownloadView`, `AiLabVoiceGeneratorView`,
-   `AiLabVisionImagesUploadView`, `AiLabVisionImageDeleteView`.
-2. For `AiLabRealtimeTokenView`, also remove `authentication_classes = []`.
-3. Consider adding rate limiting (e.g., `django-ratelimit` or DRF throttling)
-   to prevent abuse even by authenticated users.
-4. Update any frontend code that calls these endpoints to include authentication
-   headers (JWT Bearer token or session cookie).
-
-**Verification:** Call each endpoint without auth and confirm 401/403. Call with
-valid auth and confirm 200.
+**Reason:** This is a demonstration site. The OpenAI API key has a hard budget
+cap ($7), uploaded files are automatically cleaned up by a Celery task, and file
+deletion is scoped to the uploader's own files. No action needed.
 
 ---
 
@@ -847,7 +830,7 @@ Generate one combined migration.
 ## Execution Order Summary
 
 ```
-Sprint 1 (immediate):  Tasks 1-6   (P0 security)
+Sprint 1 (immediate):  Tasks 1,3-6 (P0 security, Task 2 cancelled)
 Sprint 2 (this week):  Tasks 7-16  (P1 bugs & config)
 Sprint 3 (next):        Tasks 17-29 (P2 architecture & tests)
 Sprint 4 (backlog):     Tasks 30-37 (P3 cleanup & style)

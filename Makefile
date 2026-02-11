@@ -132,3 +132,13 @@ db-backup-restore:
 	docker-compose -f docker-compose.deploy.yml exec db dropdb -U $(SQL_USER) $(SQL_DATABASE)
 	docker-compose -f docker-compose.deploy.yml exec db createdb -U $(SQL_USER) $(SQL_DATABASE)
 	docker-compose -f docker-compose.deploy.yml exec -T db psql -U $(SQL_USER) $(SQL_DATABASE) < ../db_backup.sql
+
+media-backup-restore:
+	docker run --rm \
+	-v karnetic-labs_static-data:/data \
+	-v /home/ec2-user:/backup \
+	alpine sh -c "cd /data && tar -xzf /backup/vol_web_backup.tar.gz"
+
+restore:
+	$(MAKE) db-backup-restore
+	$(MAKE) media-backup-restore
