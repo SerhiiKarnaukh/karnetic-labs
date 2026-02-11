@@ -149,3 +149,15 @@ media-backup-restore:
 restore:
 	$(MAKE) db-backup-restore
 	$(MAKE) media-backup-restore
+
+# PostgreSQL Update Steps:
+# 1. Backup: make backup-host
+# 2. Update: image: postgres:version-alpine
+# 3. Push to repo (trigger GitHub Actions)
+# 4. SSH to server: make postgres
+postgress:
+	docker-compose -f docker-compose.deploy.yml down
+	docker volume rm $$(docker volume ls -qf name=postgres-data)
+	docker volume rm $$(docker volume ls -qf name=redisdata)
+	$(MAKE) deploy
+	$(MAKE) db-backup-restore
