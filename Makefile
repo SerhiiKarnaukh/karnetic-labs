@@ -128,6 +128,13 @@ proxy:
 	docker-compose -f docker-compose.deploy.yml up -d
 	docker system prune -a --volumes -f
 
+backup-host:
+	docker-compose -f docker-compose.deploy.yml exec db pg_dump -U $(SQL_USER) $(SQL_DATABASE) > ../db_backup.sql
+	docker run --rm \
+	-v karnetic-labs_static-data:/data \
+	-v /home/ec2-user:/backup \
+	alpine tar -czf /backup/vol_web_backup.tar.gz -C /data .
+
 db-backup-restore:
 	docker-compose -f docker-compose.deploy.yml exec db dropdb -U $(SQL_USER) $(SQL_DATABASE)
 	docker-compose -f docker-compose.deploy.yml exec db createdb -U $(SQL_USER) $(SQL_DATABASE)
