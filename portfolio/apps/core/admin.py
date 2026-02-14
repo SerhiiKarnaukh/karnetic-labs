@@ -1,12 +1,23 @@
 from django.contrib import admin
 from django import forms
 from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 
 from django_ckeditor_5.widgets import CKEditor5Widget
 import admin_thumbnails
 
 
-from .models import Category, Tag, Project, ProjectGallery
+from .models import Category, Tag, Project, ProjectGallery, ServerStatistics
+
+
+ERROR_PREFIX = ServerStatistics.ERROR_PREFIX
+
+
+def _colored_field(value):
+    """Render value in red if it starts with N/A, green otherwise."""
+    if str(value).startswith(ERROR_PREFIX):
+        return format_html('<span style="color:#ba2121;">{}</span>', value)
+    return format_html('<span style="color:#28a745;">{}</span>', value)
 
 
 @admin_thumbnails.thumbnail('image')
@@ -93,6 +104,50 @@ class CategoryAdmin(admin.ModelAdmin):
 
 class TagAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("title", )}
+
+
+@admin.register(ServerStatistics)
+class ServerStatisticsAdmin(admin.ModelAdmin):
+    list_display = (
+        'collected_at',
+        'app_version',
+        'colored_db_size',
+        'colored_media_size',
+        'colored_disk_total',
+        'colored_disk_used',
+        'colored_disk_available',
+    )
+    list_filter = ('app_version',)
+    ordering = ('-collected_at',)
+
+    @admin.display(description='DB Size')
+    def colored_db_size(self, obj):
+        return _colored_field(obj.db_size)
+
+    @admin.display(description='Media Size')
+    def colored_media_size(self, obj):
+        return _colored_field(obj.media_size)
+
+    @admin.display(description='Disk Total')
+    def colored_disk_total(self, obj):
+        return _colored_field(obj.disk_total)
+
+    @admin.display(description='Disk Used')
+    def colored_disk_used(self, obj):
+        return _colored_field(obj.disk_used)
+
+    @admin.display(description='Disk Available')
+    def colored_disk_available(self, obj):
+        return _colored_field(obj.disk_available)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return True
 
 
 admin.site.register(Category, CategoryAdmin)

@@ -86,6 +86,22 @@ update_front_core:
 #1.connect to your server with ssh
 #2. git pull origin|development command on the server
 #3. make prod|dev command on the server
+clean-orphaned-safe:
+	@echo "🔍 Cleaning orphaned Docker layers..."
+	@docker images -aq | xargs -I {} docker inspect {} 2>/dev/null | grep -oP '(?<=/var/lib/docker/overlay2/)[a-z0-9]+(?=/diff)' | sort -u > /tmp/keep_layers.txt || true
+	@sudo ls /var/lib/docker/overlay2/ | while read dir; do \
+		if ! grep -q "^$$dir$$" /tmp/keep_layers.txt && [ "$$dir" != "l" ]; then \
+			sudo rm -rf "/var/lib/docker/overlay2/$$dir" 2>/dev/null || true; \
+		fi \
+	done
+	@echo "✅ Orphaned layers cleanup complete"
+
+clean-docker:
+	docker system prune -af
+	docker builder prune -af
+	sudo journalctl --vacuum-size=100M
+
+
 build-front-end:
 	cd portfolio/apps/taberna_product/_dev && \
 	rm -rf node_modules && \
@@ -106,8 +122,9 @@ deploy:
 	docker-compose -f docker-compose.deploy.yml build
 	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py makemigrations"
 	docker-compose -f docker-compose.deploy.yml run --rm app sh -c "python manage.py migrate"
+	$(MAKE) clean-orphaned-safe
 	docker-compose -f docker-compose.deploy.yml up -d
-	docker system prune -a --volumes -f
+	$(MAKE) clean-docker
 
 prod:
 	git pull origin
@@ -152,7 +169,7 @@ restore:
 
 # PostgreSQL Update Steps:
 # 1. Backup: make backup-host
-# 2. Update: image: postgres:version-alpine
+# 2. Update: local image: postgres:version-alpine
 # 3. Push to repo (GitHub Action will likely fail, but image pull is what matters)
 # 4. SSH to server: make postgres
 postgres:
