@@ -50,6 +50,7 @@ services:
     volumes:
       - portfolio-postgres-data:/var/lib/postgresql/data
     environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
       - POSTGRES_DB=${SQL_DATABASE}
       - POSTGRES_USER=${SQL_USER}
       - POSTGRES_PASSWORD=${SQL_PASSWORD}
