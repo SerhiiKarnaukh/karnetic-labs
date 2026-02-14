@@ -97,7 +97,7 @@ clean-orphaned-safe:
 	@echo "✅ Orphaned layers cleanup complete"
 
 clean-docker:
-	docker system prune -af
+	docker system prune -a --volumes -f
 	docker builder prune -af
 	sudo journalctl --vacuum-size=100M
 
@@ -172,6 +172,7 @@ restore:
 # 2. Update: local image: postgres:version-alpine
 # 3. Push to repo (GitHub Action will likely fail, but image pull is what matters)
 # 4. SSH to server: make postgres
+# 5. On 18 postgres you need to add - PGDATA=/var/lib/postgresql/data/pgdata
 postgres:
 	docker-compose -f docker-compose.deploy.yml down
 	docker volume rm $$(docker volume ls -qf name=postgres-data)
