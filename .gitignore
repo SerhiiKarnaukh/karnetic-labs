@@ -47,6 +47,7 @@ vetur.config.js
 
 temp/
 /data
+f1-pitwall_tmp/
 
 # Unit test / coverage reports
 htmlcov/

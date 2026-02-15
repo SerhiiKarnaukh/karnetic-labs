@@ -1,0 +1,103 @@
+"""Application-wide constants for the F1 Pit Wall module."""
+
+# OpenF1 API
+OPENF1_BASE_URL = 'https://api.openf1.org/v1'
+
+# Tire compounds
+COMPOUND_SOFT = 'SOFT'
+COMPOUND_MEDIUM = 'MEDIUM'
+COMPOUND_HARD = 'HARD'
+COMPOUND_INTERMEDIATE = 'INTERMEDIATE'
+COMPOUND_WET = 'WET'
+
+COMPOUND_CHOICES = [
+    (COMPOUND_SOFT, 'Soft'),
+    (COMPOUND_MEDIUM, 'Medium'),
+    (COMPOUND_HARD, 'Hard'),
+    (COMPOUND_INTERMEDIATE, 'Intermediate'),
+    (COMPOUND_WET, 'Wet'),
+]
+
+# Session types
+SESSION_PRACTICE = 'practice'
+SESSION_QUALIFYING = 'qualifying'
+SESSION_SPRINT = 'sprint'
+SESSION_RACE = 'race'
+
+SESSION_TYPE_CHOICES = [
+    (SESSION_PRACTICE, 'Practice'),
+    (SESSION_QUALIFYING, 'Qualifying'),
+    (SESSION_SPRINT, 'Sprint'),
+    (SESSION_RACE, 'Race'),
+]
+
+# Race control flag types
+FLAG_GREEN = 'GREEN'
+FLAG_YELLOW = 'YELLOW'
+FLAG_DOUBLE_YELLOW = 'DOUBLE_YELLOW'
+FLAG_RED = 'RED'
+FLAG_BLUE = 'BLUE'
+FLAG_BLACK = 'BLACK'
+FLAG_BLACK_WHITE = 'BLACK_WHITE'
+FLAG_CHEQUERED = 'CHEQUERED'
+
+FLAG_CHOICES = [
+    (FLAG_GREEN, 'Green'),
+    (FLAG_YELLOW, 'Yellow'),
+    (FLAG_DOUBLE_YELLOW, 'Double Yellow'),
+    (FLAG_RED, 'Red'),
+    (FLAG_BLUE, 'Blue'),
+    (FLAG_BLACK, 'Black'),
+    (FLAG_BLACK_WHITE, 'Black and White'),
+    (FLAG_CHEQUERED, 'Chequered'),
+]
+
+# Threat types
+THREAT_BRUTE_FORCE = 'BRUTE_FORCE'
+THREAT_SQL_INJECTION = 'SQL_INJECTION'
+THREAT_XSS = 'XSS'
+THREAT_RATE_LIMIT = 'RATE_LIMIT'
+THREAT_INVALID_TOKEN = 'INVALID_TOKEN'
+THREAT_SUSPICIOUS_PATTERN = 'SUSPICIOUS_PATTERN'
+THREAT_DATA_EXFIL = 'DATA_EXFIL'
+THREAT_PARAMETER_TAMPERING = 'PARAMETER_TAMPERING'
+
+THREAT_TYPE_CHOICES = [
+    (THREAT_BRUTE_FORCE, 'Brute Force'),
+    (THREAT_SQL_INJECTION, 'SQL Injection'),
+    (THREAT_XSS, 'Cross-Site Scripting'),
+    (THREAT_RATE_LIMIT, 'Rate Limit'),
+    (THREAT_INVALID_TOKEN, 'Invalid Token'),
+    (THREAT_SUSPICIOUS_PATTERN, 'Suspicious Pattern'),
+    (THREAT_DATA_EXFIL, 'Data Exfiltration'),
+    (THREAT_PARAMETER_TAMPERING, 'Parameter Tampering'),
+]
+
+# Threat severity levels
+SEVERITY_LOW = 'LOW'
+SEVERITY_MEDIUM = 'MEDIUM'
+SEVERITY_HIGH = 'HIGH'
+SEVERITY_CRITICAL = 'CRITICAL'
+
+SEVERITY_CHOICES = [
+    (SEVERITY_LOW, 'Low'),
+    (SEVERITY_MEDIUM, 'Medium'),
+    (SEVERITY_HIGH, 'High'),
+    (SEVERITY_CRITICAL, 'Critical'),
+]
+
+# Rate limiting defaults (requests per minute)
+RATE_LIMIT_ANON = 30
+RATE_LIMIT_AUTH = 120
+RATE_LIMIT_TELEMETRY = 300
+
+# Cache TTL defaults (seconds)
+CACHE_TTL_LIVE = 5
+CACHE_TTL_HISTORICAL = 3600
+
+# Data retention defaults (days)
+CLEANUP_TELEMETRY_DAYS = 90
+CLEANUP_AUDIT_DAYS = 180
+
+# Strategy engine constants
+PIT_STOP_TIME_LOSS = 22.0
