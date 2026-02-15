@@ -57,7 +57,8 @@ INSTALLED_APPS = [
     'social_notification',
     'donation',
     'paypal.standard.ipn',
-    'ai_lab'
+    'ai_lab',
+    'f1_pitwall',
 ]
 
 MIGRATION_MODULES = {
