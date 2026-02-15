@@ -81,6 +81,12 @@ update_front_core:
 	rm -rf node_modules && \
 	cd /d/projects/karnetic-labs
 
+sync-f1:
+	docker-compose -f docker-compose.deploy.yml run --rm app sh -c \
+	"python manage.py sync_f1_sessions --year 2023 && \
+	 python manage.py sync_f1_sessions --year 2024 && \
+	 python manage.py sync_f1_sessions --year 2025"
+
 ########################For Remote Host Makefile##############################
 #When making changes to this block, you must first run:
 #1.connect to your server with ssh

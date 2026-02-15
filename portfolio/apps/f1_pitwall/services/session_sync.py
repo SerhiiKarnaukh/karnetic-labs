@@ -20,6 +20,10 @@ SESSION_TYPE_MAP = {
     'race': 'race',
 }
 
+# Driver numbers that are not real racing entries
+NON_RACING_DRIVER_PREFIXES = ('FOM', 'FIA')
+NON_RACING_NAME_KEYWORDS = ('TEST CAR', 'SAFETY CAR', 'MEDICAL CAR')
+
 
 class SessionSyncService:
     """Synchronizes session and driver data from OpenF1 into local DB."""
@@ -107,16 +111,19 @@ class SessionSyncService:
             return False
 
         defaults = {
-            'meeting_key': raw.get('meeting_key', 0),
-            'session_name': raw.get('session_name', ''),
-            'session_type': self._map_session_type(raw.get('session_type', '')),
-            'circuit_name': raw.get('location', ''),
-            'circuit_short_name': raw.get('circuit_short_name', '')[:20],
-            'country_name': raw.get('country_name', ''),
-            'country_code': raw.get('country_code', '')[:3],
+            'meeting_key': raw.get('meeting_key') or 0,
+            'session_name': raw.get('session_name') or '',
+            'session_type': self._resolve_session_type(
+                raw.get('session_type') or '',
+                raw.get('session_name') or '',
+            ),
+            'circuit_name': raw.get('location') or '',
+            'circuit_short_name': (raw.get('circuit_short_name') or '')[:20],
+            'country_name': raw.get('country_name') or '',
+            'country_code': (raw.get('country_code') or '')[:3],
             'date_start': parse_datetime(raw['date_start']),
             'date_end': self._parse_optional_datetime(raw.get('date_end')),
-            'year': raw.get('year', 0),
+            'year': raw.get('year') or 0,
         }
 
         _, created = Session.objects.update_or_create(
@@ -131,19 +138,11 @@ class SessionSyncService:
         if not driver_number:
             return False
 
-        colour = raw.get('team_colour', '')
+        colour = raw.get('team_colour') or ''
         if colour and not colour.startswith('#'):
             colour = f'#{colour}'
 
-        defaults = {
-            'full_name': raw.get('full_name', ''),
-            'name_acronym': raw.get('name_acronym', '')[:3],
-            'team_name': raw.get('team_name', ''),
-            'team_colour': colour[:7],
-            'headshot_url': raw.get('headshot_url') or '',
-            'country_code': raw.get('country_code', '')[:3],
-            'is_active': True,
-        }
+        defaults = self._build_driver_defaults(raw, colour)
 
         _, created = Driver.objects.update_or_create(
             driver_number=driver_number,
@@ -151,8 +150,43 @@ class SessionSyncService:
         )
         return created
 
-    def _map_session_type(self, api_type):
-        """Map OpenF1 session_type string to our model choices."""
+    def _build_driver_defaults(self, raw, colour):
+        """Build defaults dict, skipping empty values for existing records."""
+        full_name = raw.get('full_name') or ''
+        candidate = {
+            'full_name': full_name,
+            'name_acronym': (raw.get('name_acronym') or '')[:3],
+            'team_name': raw.get('team_name') or '',
+            'team_colour': colour[:7],
+            'headshot_url': raw.get('headshot_url') or '',
+            'country_code': (raw.get('country_code') or '')[:3],
+            'is_active': not self._is_non_racing_entry(full_name),
+        }
+        # Only include non-empty values so we don't overwrite good data
+        # Always include is_active — it must be set explicitly
+        return {
+            k: v for k, v in candidate.items()
+            if v or k == 'is_active'
+        }
+
+    def _is_non_racing_entry(self, full_name):
+        """Check if the driver entry is a non-racing vehicle (FOM/FIA)."""
+        upper = full_name.upper()
+        return any(kw in upper for kw in NON_RACING_NAME_KEYWORDS)
+
+    def _resolve_session_type(self, api_type, session_name):
+        """Determine session_type from both API type and session name.
+
+        OpenF1 returns session_type='Race' for Sprint races, so we use
+        session_name to distinguish sprints from main races.
+        """
+        name_lower = session_name.lower()
+        if name_lower == 'sprint':
+            return 'sprint'
+        if 'sprint' in name_lower and 'qualifying' in name_lower:
+            return 'qualifying'
+        if 'sprint' in name_lower and 'shootout' in name_lower:
+            return 'qualifying'
         return SESSION_TYPE_MAP.get(api_type.lower(), 'practice')
 
     def _parse_optional_datetime(self, value):
