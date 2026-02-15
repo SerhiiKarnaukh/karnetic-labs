@@ -133,29 +133,36 @@ class SessionDetailViewTest(TestCase):
 
     def test_unauthenticated_request_rejected(self):
         session = create_session()
-        url = reverse('f1_pitwall:session-detail',
-                       kwargs={'session_key': session.session_key})
+        url = reverse(
+            'f1_pitwall:session-detail',
+            kwargs={'session_key': session.session_key},
+        )
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_retrieve_session_detail(self):
         session = create_session()
-        url = reverse('f1_pitwall:session-detail',
-                       kwargs={'session_key': session.session_key})
+        url = reverse(
+            'f1_pitwall:session-detail',
+            kwargs={'session_key': session.session_key},
+        )
 
         self.client.force_authenticate(self.user)
         res = self.client.get(url)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['session_key'], session.session_key)
-        self.assertEqual(res.data['circuit_name'],
-                         'Bahrain International Circuit')
+        self.assertEqual(
+            res.data['circuit_name'], 'Bahrain International Circuit',
+        )
         self.assertIn('meeting_key', res.data)
         self.assertIn('created_at', res.data)
 
     def test_nonexistent_session_returns_404(self):
-        url = reverse('f1_pitwall:session-detail',
-                       kwargs={'session_key': 99999})
+        url = reverse(
+            'f1_pitwall:session-detail',
+            kwargs={'session_key': 99999},
+        )
 
         self.client.force_authenticate(self.user)
         res = self.client.get(url)
@@ -259,15 +266,19 @@ class DriverDetailViewTest(TestCase):
 
     def test_unauthenticated_request_rejected(self):
         driver = create_driver()
-        url = reverse('f1_pitwall:driver-detail',
-                       kwargs={'driver_number': driver.driver_number})
+        url = reverse(
+            'f1_pitwall:driver-detail',
+            kwargs={'driver_number': driver.driver_number},
+        )
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_retrieve_driver_detail(self):
         driver = create_driver()
-        url = reverse('f1_pitwall:driver-detail',
-                       kwargs={'driver_number': driver.driver_number})
+        url = reverse(
+            'f1_pitwall:driver-detail',
+            kwargs={'driver_number': driver.driver_number},
+        )
 
         self.client.force_authenticate(self.user)
         res = self.client.get(url)
@@ -279,8 +290,10 @@ class DriverDetailViewTest(TestCase):
         self.assertIn('created_at', res.data)
 
     def test_nonexistent_driver_returns_404(self):
-        url = reverse('f1_pitwall:driver-detail',
-                       kwargs={'driver_number': 99})
+        url = reverse(
+            'f1_pitwall:driver-detail',
+            kwargs={'driver_number': 99},
+        )
 
         self.client.force_authenticate(self.user)
         res = self.client.get(url)
