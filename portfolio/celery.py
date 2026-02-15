@@ -36,5 +36,8 @@ app.conf.beat_schedule = {
         'schedule': crontab(hour=2, minute=0),
         'options': {'timezone': 'Europe/Kiev'},
     },
-
+    'sync_f1_sessions': {
+        'task': 'f1_pitwall.tasks.sync_sessions.sync_f1_sessions',
+        'schedule': crontab(minute=0, hour='*/6'),
+    },
 }
