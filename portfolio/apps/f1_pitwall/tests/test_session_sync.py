@@ -5,8 +5,10 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 
+from f1_pitwall.exceptions import OpenF1APIError
 from f1_pitwall.models import Driver, Session
 from f1_pitwall.services.session_sync import SessionSyncService
+from f1_pitwall.tasks.sync_sessions import sync_f1_sessions
 
 
 MOCK_SESSIONS = [
@@ -335,3 +337,168 @@ class DetectLiveSessionTest(TestCase):
 
         service = SessionSyncService()
         self.assertIsNone(service.detect_live_session())
+
+
+class SyncF1SessionsCeleryTaskTest(TestCase):
+    """Tests for the sync_f1_sessions Celery task — real execution path."""
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_task_creates_sessions_and_drivers(
+        self, mock_drivers, mock_sessions,
+    ):
+        result = sync_f1_sessions(year=2023)
+
+        self.assertEqual(Session.objects.count(), 2)
+        self.assertEqual(Driver.objects.count(), 2)
+        self.assertIn('Sessions:', result)
+        self.assertIn('Drivers:', result)
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_task_returns_summary_string(
+        self, mock_drivers, mock_sessions,
+    ):
+        result = sync_f1_sessions()
+
+        self.assertIn('2 created', result)
+        self.assertIn('0 updated', result)
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_task_updates_on_second_run(
+        self, mock_drivers, mock_sessions,
+    ):
+        sync_f1_sessions(year=2023)
+        result = sync_f1_sessions(year=2023)
+
+        self.assertIn('0 created', result)
+        self.assertIn('2 updated', result)
+        self.assertEqual(Session.objects.count(), 2)
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions', return_value=[],
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=[],
+    )
+    def test_task_handles_empty_api_response(
+        self, mock_drivers, mock_sessions,
+    ):
+        result = sync_f1_sessions()
+
+        self.assertEqual(Session.objects.count(), 0)
+        self.assertEqual(Driver.objects.count(), 0)
+        self.assertIn('0 created', result)
+
+    def test_task_is_registered_in_celery(self):
+        from portfolio.celery import app
+        registered = app.tasks
+        self.assertIn(
+            'f1_pitwall.tasks.sync_sessions.sync_f1_sessions',
+            registered,
+        )
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_task_passes_year_to_service(
+        self, mock_drivers, mock_sessions,
+    ):
+        sync_f1_sessions(year=2024)
+        mock_sessions.assert_called_once_with(2024)
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_task_without_year_passes_none(
+        self, mock_drivers, mock_sessions,
+    ):
+        sync_f1_sessions()
+        mock_sessions.assert_called_once_with(None)
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_task_persists_correct_session_data(
+        self, mock_drivers, mock_sessions,
+    ):
+        sync_f1_sessions(year=2023)
+
+        session = Session.objects.get(session_key=9158)
+        self.assertEqual(session.session_name, 'Practice 1')
+        self.assertEqual(session.circuit_short_name, 'Singapore')
+
+        driver = Driver.objects.get(driver_number=1)
+        self.assertEqual(driver.full_name, 'Max VERSTAPPEN')
+        self.assertEqual(driver.team_name, 'Red Bull Racing')
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions',
+        side_effect=OpenF1APIError('/sessions returned 401'),
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_task_survives_api_unavailable_during_live_session(
+        self, mock_drivers, mock_sessions,
+    ):
+        """Task must not crash when OpenF1 returns 401 during live sessions."""
+        result = sync_f1_sessions(year=2024)
+
+        self.assertIn('0 created', result)
+        self.assertEqual(Driver.objects.count(), 2)
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions',
+        side_effect=OpenF1APIError('/sessions returned 401'),
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers',
+        side_effect=OpenF1APIError('/drivers returned 401'),
+    )
+    def test_task_survives_both_endpoints_unavailable(
+        self, mock_drivers, mock_sessions,
+    ):
+        """Task returns zeros when entire API is locked during live session."""
+        result = sync_f1_sessions()
+
+        self.assertIn('Sessions: 0 created, 0 updated', result)
+        self.assertIn('Drivers: 0 created, 0 updated', result)
+
+    @patch.object(
+        SessionSyncService, '_fetch_sessions',
+        side_effect=OpenF1APIError('API down'),
+    )
+    @patch.object(
+        SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS,
+    )
+    def test_driver_sync_runs_even_if_session_sync_fails(
+        self, mock_drivers, mock_sessions,
+    ):
+        """Driver sync must not be skipped when session sync fails."""
+        sync_f1_sessions()
+
+        self.assertEqual(Session.objects.count(), 0)
+        self.assertEqual(Driver.objects.count(), 2)

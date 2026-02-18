@@ -17,7 +17,7 @@ jobs:
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
             - name: Checkout
               uses: actions/checkout@v4
-            - name: Test
+            - name: Test and Lint
               env:
                   SQL_ENGINE: ${{ secrets.SQL_ENGINE }}
                   SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
@@ -26,9 +26,12 @@ jobs:
                   SQL_HOST: ${{ secrets.SQL_HOST }}
                   SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
                   STRIPE_PRIVATE_KEY: ${{ secrets.STRIPE_PRIVATE_KEY }}
-              run: docker compose run --rm app sh -c "python manage.py wait_for_db && python manage.py test"
-            - name: Lint
-              run: docker compose run --rm app sh -c "flake8"
+              run: >-
+                  docker compose run --rm app sh -c
+                  "python manage.py wait_for_db &&
+                  flake8 &&
+                  DJANGO_SETTINGS_MODULE=portfolio.settings_test
+                  python manage.py test"
 
     deploy:
         needs: test-lint

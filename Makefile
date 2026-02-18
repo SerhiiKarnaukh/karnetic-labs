@@ -9,10 +9,12 @@ build:
 	docker-compose up -d --build && docker image prune -f
 
 test:
-	docker-compose run --rm app sh -c "flake8"
-	docker-compose run --rm app sh -c "coverage run manage.py test"
-	docker-compose run --rm app sh -c "coverage report"
-	docker-compose run --rm app sh -c "coverage html"
+	docker-compose run --rm app sh -c "\
+		flake8 && \
+		DJANGO_SETTINGS_MODULE=portfolio.settings_test \
+		coverage run manage.py test && \
+		coverage report && \
+		coverage html"
 	docker-compose down
 
 stop:
