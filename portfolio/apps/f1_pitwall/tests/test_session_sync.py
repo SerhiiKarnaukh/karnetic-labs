@@ -206,6 +206,43 @@ class SyncDriversTest(TestCase):
         self.assertEqual(ver.full_name, 'Max VERSTAPPEN')
         self.assertEqual(ver.team_name, 'Red Bull Racing')
 
+    @patch.object(SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS)
+    def test_deactivates_stale_drivers(self, mock_fetch):
+        Driver.objects.create(
+            driver_number=99, full_name='Old DRIVER',
+            name_acronym='OLD', team_name='Old Team',
+            team_colour='#000', is_active=True,
+        )
+
+        service = SessionSyncService()
+        service.sync_drivers()
+
+        old = Driver.objects.get(driver_number=99)
+        self.assertFalse(old.is_active)
+
+    @patch.object(SessionSyncService, '_fetch_drivers', return_value=MOCK_DRIVERS)
+    def test_keeps_synced_drivers_active(self, mock_fetch):
+        service = SessionSyncService()
+        service.sync_drivers()
+
+        for num in [1, 44]:
+            d = Driver.objects.get(driver_number=num)
+            self.assertTrue(d.is_active)
+
+    @patch.object(SessionSyncService, '_fetch_drivers', return_value=[])
+    def test_no_deactivation_on_empty_response(self, mock_fetch):
+        Driver.objects.create(
+            driver_number=1, full_name='Max VERSTAPPEN',
+            name_acronym='VER', team_name='Red Bull Racing',
+            team_colour='#3671C6', is_active=True,
+        )
+
+        service = SessionSyncService()
+        service.sync_drivers()
+
+        ver = Driver.objects.get(driver_number=1)
+        self.assertTrue(ver.is_active)
+
     @patch.object(SessionSyncService, '_fetch_drivers', return_value=[{'no_number': True}])
     def test_skips_entry_without_driver_number(self, mock_fetch):
         service = SessionSyncService()

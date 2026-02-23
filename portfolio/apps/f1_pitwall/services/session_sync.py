@@ -47,9 +47,18 @@ class SessionSyncService:
         return {'created': created, 'updated': updated}
 
     def sync_drivers(self, session_key=None):
-        """Pull driver info from OpenF1 and create/update local records."""
+        """Pull driver info from OpenF1 and create/update local records.
+
+        Without session_key, uses the most recent session from the DB
+        to avoid fetching thousands of duplicate entries.
+        Drivers not present in the API response are marked inactive.
+        """
+        if not session_key:
+            session_key = self._get_latest_session_key()
+
         raw_drivers = self._fetch_drivers(session_key)
         created, updated = 0, 0
+        synced_numbers = set()
 
         for raw in raw_drivers:
             was_created = self._upsert_driver(raw)
@@ -57,10 +66,14 @@ class SessionSyncService:
                 created += 1
             else:
                 updated += 1
+            if raw.get('driver_number'):
+                synced_numbers.add(raw['driver_number'])
+
+        deactivated = self._deactivate_stale_drivers(synced_numbers)
 
         logger.info(
-            "Driver sync complete: %d created, %d updated",
-            created, updated,
+            "Driver sync complete: %d created, %d updated, %d deactivated",
+            created, updated, deactivated,
         )
         return {'created': created, 'updated': updated}
 
@@ -103,6 +116,25 @@ class SessionSyncService:
                 await client.close()
 
         return async_to_sync(_fetch)()
+
+    def _deactivate_stale_drivers(self, active_numbers):
+        """Mark drivers not in the sync batch as inactive."""
+        if not active_numbers:
+            return 0
+        return Driver.objects.filter(
+            is_active=True,
+        ).exclude(
+            driver_number__in=active_numbers,
+        ).update(is_active=False)
+
+    def _get_latest_session_key(self):
+        """Return session_key of the most recent past session in the DB."""
+        now = timezone.now()
+        return Session.objects.filter(
+            date_start__lte=now,
+        ).order_by('-date_start').values_list(
+            'session_key', flat=True,
+        ).first()
 
     def _upsert_session(self, raw):
         """Create or update a single Session from API data. Returns True if created."""
