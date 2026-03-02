@@ -2,6 +2,7 @@
 
 from django.urls import path
 
+from f1_pitwall.views.auth import F1MeView, F1RegisterView
 from f1_pitwall.views.drivers import DriverDetailView, DriverListView
 from f1_pitwall.views.session import (
     SessionDetailView,
@@ -12,6 +13,18 @@ from f1_pitwall.views.session import (
 app_name = 'f1_pitwall'
 
 urlpatterns = [
+    # Auth
+    path(
+        'api/register/',
+        F1RegisterView.as_view(),
+        name='register',
+    ),
+    path(
+        'api/me/',
+        F1MeView.as_view(),
+        name='me',
+    ),
+
     # Sessions
     path(
         'api/sessions/',

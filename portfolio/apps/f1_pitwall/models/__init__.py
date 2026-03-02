@@ -7,6 +7,7 @@ from f1_pitwall.models.stint import Stint
 from f1_pitwall.models.weather import WeatherData
 from f1_pitwall.models.race_control import RaceControlMessage
 from f1_pitwall.models.security import APIAuditLog, ThreatEvent
+from f1_pitwall.models.profile import F1UserProfile
 
 __all__ = [
     'Session',
@@ -19,4 +20,5 @@ __all__ = [
     'RaceControlMessage',
     'APIAuditLog',
     'ThreatEvent',
+    'F1UserProfile',
 ]

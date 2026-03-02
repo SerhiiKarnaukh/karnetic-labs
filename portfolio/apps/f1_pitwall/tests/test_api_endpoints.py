@@ -5,8 +5,9 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from unittest.mock import patch
 
-from f1_pitwall.models import Driver, Session
+from f1_pitwall.models import Driver, F1UserProfile, Session
 
 User = get_user_model()
 
@@ -51,6 +52,83 @@ def create_driver(**overrides):
     }
     defaults.update(overrides)
     return Driver.objects.create(**defaults)
+
+
+class F1RegisterViewTest(TestCase):
+    """Tests for POST /f1/api/register/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse('f1_pitwall:register')
+
+    @patch('f1_pitwall.views.auth.send_activation_email')
+    def test_register_creates_user_and_f1_profile(self, mock_send_email):
+        payload = {
+            'email': 'newf1@example.com',
+            'username': 'newf1',
+            'password': 'f1strongpass123',
+            'first_name': 'New',
+            'last_name': 'User',
+        }
+
+        res = self.client.post(self.url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(email='newf1@example.com')
+        profile = F1UserProfile.objects.get(user=user)
+        self.assertEqual(profile.role, F1UserProfile.Role.VIEWER)
+        mock_send_email.assert_called_once()
+
+    def test_register_rejects_duplicate_email(self):
+        create_test_user(email='duplicate@example.com')
+        payload = {
+            'email': 'duplicate@example.com',
+            'username': 'duplicate',
+            'password': 'f1strongpass123',
+            'first_name': 'Dup',
+            'last_name': 'User',
+        }
+
+        res = self.client.post(self.url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            User.objects.filter(email='duplicate@example.com').count(), 1,
+        )
+        self.assertEqual(F1UserProfile.objects.count(), 0)
+
+
+class F1MeViewTest(TestCase):
+    """Tests for GET /f1/api/me/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse('f1_pitwall:me')
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_returns_user_and_role(self):
+        user = create_test_user(email='f1me@example.com')
+        F1UserProfile.objects.create(user=user, role=F1UserProfile.Role.ENGINEER)
+
+        self.client.force_authenticate(user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['email'], 'f1me@example.com')
+        self.assertEqual(res.data['role'], F1UserProfile.Role.ENGINEER)
+
+    def test_creates_viewer_profile_if_missing(self):
+        user = create_test_user(email='autocreate@example.com')
+
+        self.client.force_authenticate(user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['role'], F1UserProfile.Role.VIEWER)
+        self.assertTrue(F1UserProfile.objects.filter(user=user).exists())
 
 
 class SessionListViewTest(TestCase):

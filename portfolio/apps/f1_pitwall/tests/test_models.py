@@ -8,6 +8,7 @@ from django.utils import timezone
 from f1_pitwall.models import (
     APIAuditLog,
     Driver,
+    F1UserProfile,
     LapData,
     PitStop,
     RaceControlMessage,
@@ -126,6 +127,37 @@ class DriverCreationTest(TestCase):
         drivers = list(Driver.objects.all())
         self.assertEqual(drivers[0].pk, d1.pk)
         self.assertEqual(drivers[1].pk, d44.pk)
+
+
+class F1UserProfileCreationTest(TestCase):
+    """Test F1 user profile defaults and constraints."""
+
+    def test_profile_default_role_is_viewer(self):
+        user = User.objects.create_user(
+            first_name='F1',
+            last_name='User',
+            username='f1_user',
+            email='f1_user@example.com',
+            password='testpass123',
+        )
+
+        profile = F1UserProfile.objects.create(user=user)
+
+        self.assertEqual(profile.role, F1UserProfile.Role.VIEWER)
+        self.assertEqual(profile.user, user)
+
+    def test_user_has_only_one_f1_profile(self):
+        user = User.objects.create_user(
+            first_name='Single',
+            last_name='Profile',
+            username='single_profile',
+            email='single@example.com',
+            password='testpass123',
+        )
+        F1UserProfile.objects.create(user=user)
+
+        with self.assertRaises(IntegrityError):
+            F1UserProfile.objects.create(user=user)
 
 
 # -- TelemetrySnapshot model -------------------------------------------------

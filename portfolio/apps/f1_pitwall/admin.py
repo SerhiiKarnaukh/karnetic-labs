@@ -5,6 +5,7 @@ from django.contrib import admin
 from f1_pitwall.models import (
     APIAuditLog,
     Driver,
+    F1UserProfile,
     LapData,
     PitStop,
     RaceControlMessage,
@@ -37,6 +38,13 @@ class DriverAdmin(admin.ModelAdmin):
     list_filter = ('team_name', 'is_active')
     search_fields = ('full_name', 'name_acronym', 'team_name')
     readonly_fields = ('id', 'created_at', 'updated_at')
+
+
+@admin.register(F1UserProfile)
+class F1UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role')
+    list_filter = ('role',)
+    search_fields = ('user__email', 'user__username')
 
 
 @admin.register(TelemetrySnapshot)
