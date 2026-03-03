@@ -1,1 +1,365 @@
 """Pure calculation logic for race strategy modeling."""
+
+from dataclasses import dataclass
+
+from f1_pitwall.constants import (
+    COMPOUND_HARD,
+    COMPOUND_INTERMEDIATE,
+    COMPOUND_MEDIUM,
+    COMPOUND_SOFT,
+    COMPOUND_WET,
+    PIT_STOP_TIME_LOSS,
+)
+
+
+@dataclass(frozen=True)
+class TireProfile:
+    """Tire degradation assumptions used by the strategy model."""
+
+    degradation_per_lap: float
+    cliff_lap: int
+    optimal_window_start: int
+    optimal_window_end: int
+
+
+@dataclass(frozen=True)
+class StrategyStop:
+    """Single planned stop with in-lap and next compound."""
+
+    lap: int
+    compound: str
+
+
+@dataclass(frozen=True)
+class StrategyOption:
+    """Computed strategy option scored for decision support."""
+
+    name: str
+    total_time: float
+    pit_stops: tuple[StrategyStop, ...]
+    tire_risk: float
+    weather_risk: float
+    undercut_potential: float
+    overcut_potential: float
+    notes: str
+
+
+class StrategyEngine:
+    """Pure race-strategy calculator with tire degradation simulation."""
+
+    DEGRADATION_PROFILES = {
+        COMPOUND_SOFT: TireProfile(0.08, 18, 12, 18),
+        COMPOUND_MEDIUM: TireProfile(0.05, 28, 20, 28),
+        COMPOUND_HARD: TireProfile(0.03, 40, 30, 40),
+        COMPOUND_INTERMEDIATE: TireProfile(0.06, 25, 18, 25),
+        COMPOUND_WET: TireProfile(0.07, 20, 14, 20),
+    }
+
+    def __init__(self, pit_time_loss=PIT_STOP_TIME_LOSS):
+        self.pit_time_loss = pit_time_loss
+
+    def calculate_strategies(
+        self,
+        current_lap,
+        total_laps,
+        current_compound,
+        tyre_age,
+        base_lap_time,
+        weather_forecast,
+        gap_ahead,
+        gap_behind,
+    ):
+        """Generate and rank strategy options for the current race state."""
+        strategies = []
+        one_stop = self._one_stop_option(
+            current_lap, total_laps, current_compound, tyre_age, base_lap_time,
+            weather_forecast, gap_behind,
+        )
+        if one_stop:
+            strategies.append(one_stop)
+
+        two_stop = self._two_stop_option(
+            current_lap, total_laps, current_compound, tyre_age, base_lap_time,
+            weather_forecast,
+        )
+        if two_stop:
+            strategies.append(two_stop)
+
+        undercut = self._undercut_option(
+            current_lap, total_laps, current_compound, tyre_age, base_lap_time,
+            weather_forecast, gap_ahead,
+        )
+        if undercut:
+            strategies.append(undercut)
+
+        wet_switch = self._wet_switch_option(
+            current_lap, total_laps, current_compound, tyre_age, base_lap_time,
+            weather_forecast,
+        )
+        if wet_switch:
+            strategies.append(wet_switch)
+        return sorted(strategies, key=lambda s: s.total_time)
+
+    def predict_lap_time(self, compound, tyre_age, base_lap_time):
+        """Predict one lap time using piecewise degradation with cliff."""
+        profile = self._profile(compound)
+        if tyre_age <= profile.cliff_lap:
+            return base_lap_time + profile.degradation_per_lap * tyre_age
+        normal = profile.degradation_per_lap * profile.cliff_lap
+        cliff_laps = tyre_age - profile.cliff_lap
+        cliff = profile.degradation_per_lap * 3 * cliff_laps
+        return base_lap_time + normal + cliff
+
+    def simulate_race_time(
+        self,
+        start_lap,
+        total_laps,
+        stops,
+        base_lap_time,
+        current_compound,
+        current_tyre_age,
+    ):
+        """Simulate total time for a strategy from current lap onward."""
+        stop_map = {stop.lap: stop for stop in stops}
+        total_time = 0.0
+        compound = current_compound
+        tyre_age = current_tyre_age
+
+        for lap in range(start_lap, total_laps + 1):
+            stop = stop_map.get(lap)
+            if stop:
+                total_time += self.pit_time_loss
+                compound = stop.compound
+                tyre_age = 0
+            total_time += self.predict_lap_time(compound, tyre_age, base_lap_time)
+            tyre_age += 1
+        return total_time
+
+    def calculate_undercut_window(self, gap_ahead, pit_time_loss=None):
+        """Return whether undercut is viable based on current gap ahead."""
+        threshold = pit_time_loss if pit_time_loss is not None else self.pit_time_loss
+        return gap_ahead < threshold
+
+    def _one_stop_option(
+        self,
+        current_lap,
+        total_laps,
+        current_compound,
+        tyre_age,
+        base_lap_time,
+        weather_forecast,
+        gap_behind,
+    ):
+        profile = self._profile(current_compound)
+        laps_to_window = profile.optimal_window_start - current_lap
+        if 0 < laps_to_window < 2:
+            return None
+
+        pit_lap = self._one_stop_pit_lap(current_lap, profile)
+        next_compound = self._compound_for_remaining(total_laps - pit_lap)
+        stops = (StrategyStop(lap=pit_lap, compound=next_compound),)
+        total_time = self.simulate_race_time(
+            current_lap, total_laps, stops, base_lap_time,
+            current_compound, tyre_age,
+        )
+        return self._build_option(
+            name='one_stop',
+            total_time=total_time,
+            pit_stops=stops,
+            weather_forecast=weather_forecast,
+            current_compound=current_compound,
+            start_lap=current_lap,
+            current_tyre_age=tyre_age,
+            undercut=False,
+            overcut=gap_behind < 3.0,
+            notes=f"Pit in optimal window around lap {pit_lap}.",
+        )
+
+    def _two_stop_option(
+        self,
+        current_lap,
+        total_laps,
+        current_compound,
+        tyre_age,
+        base_lap_time,
+        weather_forecast,
+    ):
+        remaining = total_laps - current_lap + 1
+        if remaining <= 20:
+            return None
+
+        first = current_lap + max(1, remaining // 3)
+        second = current_lap + max(2, (2 * remaining) // 3)
+        second = min(second, total_laps)
+        stops = (
+            StrategyStop(lap=first, compound=COMPOUND_HARD),
+            StrategyStop(lap=second, compound=COMPOUND_SOFT),
+        )
+        total_time = self.simulate_race_time(
+            current_lap, total_laps, stops, base_lap_time,
+            current_compound, tyre_age,
+        )
+        return self._build_option(
+            name='two_stop',
+            total_time=total_time,
+            pit_stops=stops,
+            weather_forecast=weather_forecast,
+            current_compound=current_compound,
+            start_lap=current_lap,
+            current_tyre_age=tyre_age,
+            undercut=False,
+            overcut=False,
+            notes='Split remaining race into three stints.',
+        )
+
+    def _undercut_option(
+        self,
+        current_lap,
+        total_laps,
+        current_compound,
+        tyre_age,
+        base_lap_time,
+        weather_forecast,
+        gap_ahead,
+    ):
+        if not self.calculate_undercut_window(gap_ahead):
+            return None
+
+        compound = COMPOUND_SOFT if current_compound != COMPOUND_SOFT else COMPOUND_MEDIUM
+        stops = (StrategyStop(lap=current_lap + 1, compound=compound),)
+        total_time = self.simulate_race_time(
+            current_lap, total_laps, stops, base_lap_time,
+            current_compound, tyre_age,
+        )
+        return self._build_option(
+            name='undercut',
+            total_time=total_time,
+            pit_stops=stops,
+            weather_forecast=weather_forecast,
+            current_compound=current_compound,
+            start_lap=current_lap,
+            current_tyre_age=tyre_age,
+            undercut=True,
+            overcut=False,
+            notes='Pit immediately to attack the car ahead.',
+        )
+
+    def _wet_switch_option(
+        self,
+        current_lap,
+        total_laps,
+        current_compound,
+        tyre_age,
+        base_lap_time,
+        weather_forecast,
+    ):
+        rain_probability = self._rain_probability(weather_forecast)
+        if rain_probability <= 0.5:
+            return None
+
+        eta = max(1, int(weather_forecast.get('rain_eta_laps') or 1))
+        stop_lap = min(total_laps, current_lap + eta)
+        target = COMPOUND_WET if rain_probability >= 0.75 else COMPOUND_INTERMEDIATE
+        stops = (StrategyStop(lap=stop_lap, compound=target),)
+        total_time = self.simulate_race_time(
+            current_lap, total_laps, stops, base_lap_time,
+            current_compound, tyre_age,
+        )
+        return self._build_option(
+            name='wet_switch',
+            total_time=total_time,
+            pit_stops=stops,
+            weather_forecast=weather_forecast,
+            current_compound=current_compound,
+            start_lap=current_lap,
+            current_tyre_age=tyre_age,
+            undercut=False,
+            overcut=False,
+            notes='Prepare for rain by switching to wet-weather tires.',
+        )
+
+    def _build_option(
+        self,
+        name,
+        total_time,
+        pit_stops,
+        weather_forecast,
+        current_compound,
+        start_lap,
+        current_tyre_age,
+        undercut,
+        overcut,
+        notes,
+    ):
+        tire_risk = self._strategy_tire_risk(
+            start_lap, pit_stops, current_compound, current_tyre_age,
+        )
+        weather_risk = self._strategy_weather_risk(name, weather_forecast)
+        return StrategyOption(
+            name=name,
+            total_time=round(total_time, 3),
+            pit_stops=pit_stops,
+            tire_risk=tire_risk,
+            weather_risk=weather_risk,
+            undercut_potential=1.0 if undercut else 0.0,
+            overcut_potential=1.0 if overcut else 0.0,
+            notes=notes,
+        )
+
+    def _strategy_tire_risk(
+        self, start_lap, pit_stops, current_compound, current_tyre_age,
+    ):
+        stint_start = start_lap
+        compound = current_compound
+        age = current_tyre_age
+        weighted_risk = 0.0
+        total_laps = 0
+        for stop in pit_stops:
+            laps = max(0, stop.lap - stint_start)
+            weighted_risk += self._stint_risk(compound, age, laps) * laps
+            total_laps += laps
+            stint_start = stop.lap
+            compound = stop.compound
+            age = 0
+        if total_laps == 0:
+            return 0.0
+        return round(min(1.0, weighted_risk / total_laps), 3)
+
+    def _strategy_weather_risk(self, strategy_name, weather_forecast):
+        rain_probability = self._rain_probability(weather_forecast)
+        if strategy_name == 'wet_switch':
+            return round(max(0.0, 1.0 - rain_probability), 3)
+        return round(rain_probability, 3)
+
+    def _stint_risk(self, compound, start_age, stint_laps):
+        profile = self._profile(compound)
+        end_age = start_age + stint_laps
+        if end_age <= profile.cliff_lap:
+            return 0.0
+        laps_over = end_age - profile.cliff_lap
+        return min(1.0, laps_over / max(1, stint_laps))
+
+    def _one_stop_pit_lap(self, current_lap, profile):
+        return max(
+            current_lap + 1,
+            min(profile.optimal_window_end, profile.optimal_window_start),
+        )
+
+    def _compound_for_remaining(self, remaining_laps):
+        if remaining_laps > 20:
+            return COMPOUND_HARD
+        if remaining_laps > 10:
+            return COMPOUND_MEDIUM
+        return COMPOUND_SOFT
+
+    def _rain_probability(self, weather_forecast):
+        value = float(weather_forecast.get('rain_probability') or 0.0)
+        if value > 1.0:
+            value /= 100.0
+        return min(max(value, 0.0), 1.0)
+
+    def _profile(self, compound):
+        profile = self.DEGRADATION_PROFILES.get(compound)
+        if profile is None:
+            raise ValueError(f'Unknown compound: {compound}')
+        return profile
