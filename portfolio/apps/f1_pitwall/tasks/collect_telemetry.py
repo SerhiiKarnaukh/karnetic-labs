@@ -1,10 +1,14 @@
 """Celery task for bulk-creating telemetry snapshots during live sessions."""
 
+import logging
+
 from celery import shared_task
 from django.db import transaction
 from django.utils.dateparse import parse_datetime
 
 from f1_pitwall.models import Driver, Session, TelemetrySnapshot
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task
@@ -42,16 +46,37 @@ def _build_rows(session, drivers, snapshots):
 def _build_row(session, drivers, snap):
     driver = drivers.get(snap.get('driver_number'))
     timestamp = parse_datetime(snap.get('timestamp') or '')
-    if driver is None or timestamp is None:
+    numeric = _numeric_fields(snap)
+    if driver is None or timestamp is None or numeric is None:
         return None
     return TelemetrySnapshot(
         session=session,
         driver=driver,
         timestamp=timestamp,
-        speed=int(snap.get('speed') or 0),
-        rpm=int(snap.get('rpm') or 0),
-        throttle=int(snap.get('throttle') or 0),
-        brake=int(snap.get('brake') or 0),
-        gear=int(snap.get('gear') or 0),
-        drs=int(snap.get('drs') or 0),
+        speed=numeric['speed'],
+        rpm=numeric['rpm'],
+        throttle=numeric['throttle'],
+        brake=numeric['brake'],
+        gear=numeric['gear'],
+        drs=numeric['drs'],
     )
+
+
+def _numeric_fields(snap):
+    fields = {}
+    for key in ('speed', 'rpm', 'throttle', 'brake', 'gear', 'drs'):
+        value = _to_int(snap.get(key), default=0)
+        if value is None:
+            logger.warning('Invalid telemetry field %s=%r; row skipped', key, snap.get(key))
+            return None
+        fields[key] = value
+    return fields
+
+
+def _to_int(value, default=0):
+    if value in (None, ''):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

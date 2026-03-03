@@ -88,3 +88,39 @@ class CollectTelemetrySnapshotTaskTest(TestCase):
 
         self.assertEqual(result['created'], 0)
         self.assertEqual(TelemetrySnapshot.objects.count(), 0)
+
+    def test_skips_row_with_invalid_numeric_field(self):
+        payload = [{
+            'driver_number': 1,
+            'timestamp': '2024-03-02T15:00:01+00:00',
+            'speed': 'fast',
+            'rpm': 11000,
+            'throttle': 90,
+            'brake': 0,
+            'gear': 7,
+            'drs': 10,
+        }]
+
+        result = collect_telemetry_snapshot(self.session.session_key, payload)
+
+        self.assertEqual(result['created'], 0)
+        self.assertEqual(TelemetrySnapshot.objects.count(), 0)
+
+    def test_persists_valid_rows_when_payload_is_mixed(self):
+        payload = [
+            {
+                'driver_number': 1,
+                'timestamp': '2024-03-02T15:00:01+00:00',
+                'speed': 310,
+            },
+            {
+                'driver_number': 1,
+                'timestamp': '2024-03-02T15:00:02+00:00',
+                'speed': 'broken',
+            },
+        ]
+
+        result = collect_telemetry_snapshot(self.session.session_key, payload)
+
+        self.assertEqual(result['created'], 1)
+        self.assertEqual(TelemetrySnapshot.objects.count(), 1)
