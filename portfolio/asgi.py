@@ -14,26 +14,40 @@ from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
 
-from .apps.social_chat import routing as social_chat_routing
-from .apps.social_notification import routing as social_notification_routing
-
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'portfolio.settings')
+django_asgi_app = get_asgi_application()
+ws_patterns = []
+
+
+def _load_websocket_patterns():
+    from .apps.f1_pitwall import routing as f1_pitwall_routing
+    from .apps.social_chat import routing as social_chat_routing
+    from .apps.social_notification import routing as social_notification_routing
+
+    return (
+        social_chat_routing.websocket_urlpatterns
+        + social_notification_routing.websocket_urlpatterns
+        + f1_pitwall_routing.websocket_urlpatterns
+    )
+
+
+ws_patterns = _load_websocket_patterns()
 
 
 if os.environ.get('DEBUG') == 'True':
     application = ProtocolTypeRouter({
         'http':
-        ASGIStaticFilesHandler(get_asgi_application()),
+        ASGIStaticFilesHandler(django_asgi_app),
         'websocket':
         AuthMiddlewareStack(
-            URLRouter(social_chat_routing.websocket_urlpatterns + social_notification_routing.websocket_urlpatterns))
+            URLRouter(ws_patterns))
 
     })
 else:
     application = ProtocolTypeRouter({
         'http':
-        get_asgi_application(),
+        django_asgi_app,
         'websocket':
         AuthMiddlewareStack(
-            URLRouter(social_chat_routing.websocket_urlpatterns + social_notification_routing.websocket_urlpatterns))
+            URLRouter(ws_patterns))
     })
