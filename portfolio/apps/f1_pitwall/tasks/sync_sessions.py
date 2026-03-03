@@ -27,12 +27,22 @@ def sync_f1_sessions(year=None):
     driver_result = _sync_step(
         'drivers', service.sync_drivers,
     )
+    pit_result = _sync_step(
+        'pit stops', service.sync_pit_stops,
+    )
+    stint_result = _sync_step(
+        'stints', service.sync_stints,
+    )
 
     summary = (
         f"Sessions: {session_result['created']} created, "
         f"{session_result['updated']} updated | "
         f"Drivers: {driver_result['created']} created, "
-        f"{driver_result['updated']} updated"
+        f"{driver_result['updated']} updated | "
+        f"PitStops: {pit_result['created']} created, "
+        f"{pit_result['updated']} updated | "
+        f"Stints: {stint_result['created']} created, "
+        f"{stint_result['updated']} updated"
     )
     logger.info("sync_f1_sessions complete: %s", summary)
     return summary

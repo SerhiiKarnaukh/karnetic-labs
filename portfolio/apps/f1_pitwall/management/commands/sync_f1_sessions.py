@@ -26,6 +26,14 @@ class Command(BaseCommand):
         driver_result = service.sync_drivers()
         self._print_result('Drivers', driver_result)
 
+        self.stdout.write("Syncing pit stops...")
+        pit_result = service.sync_pit_stops()
+        self._print_result('PitStops', pit_result)
+
+        self.stdout.write("Syncing stints...")
+        stint_result = service.sync_stints()
+        self._print_result('Stints', stint_result)
+
         self.stdout.write(self.style.SUCCESS('Sync complete.'))
 
     def _print_result(self, label, result):

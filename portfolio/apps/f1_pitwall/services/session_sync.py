@@ -6,7 +6,8 @@ from asgiref.sync import async_to_sync
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from f1_pitwall.models import Driver, Session
+from f1_pitwall.constants import COMPOUND_CHOICES
+from f1_pitwall.models import Driver, PitStop, Session, Stint
 from f1_pitwall.services.openf1_client import OpenF1Client
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ SESSION_TYPE_MAP = {
 # Driver numbers that are not real racing entries
 NON_RACING_DRIVER_PREFIXES = ('FOM', 'FIA')
 NON_RACING_NAME_KEYWORDS = ('TEST CAR', 'SAFETY CAR', 'MEDICAL CAR')
+VALID_COMPOUNDS = {choice[0] for choice in COMPOUND_CHOICES}
 
 
 class SessionSyncService:
@@ -84,6 +86,38 @@ class SessionSyncService:
             qs = qs.filter(session_type=session_type)
         return qs
 
+    def sync_pit_stops(self, session_key=None):
+        """Pull pit stop events and create/update local records."""
+        session_key = self._resolve_sync_session_key(session_key)
+        if not session_key:
+            return {'created': 0, 'updated': 0}
+
+        raw_events = self._fetch_pit_data(session_key)
+        created, updated = 0, 0
+        for raw in raw_events:
+            was_created = self._upsert_pit_stop(raw)
+            if was_created:
+                created += 1
+            elif was_created is False:
+                updated += 1
+        return {'created': created, 'updated': updated}
+
+    def sync_stints(self, session_key=None):
+        """Pull stint data and create/update local records."""
+        session_key = self._resolve_sync_session_key(session_key)
+        if not session_key:
+            return {'created': 0, 'updated': 0}
+
+        raw_stints = self._fetch_stints(session_key)
+        created, updated = 0, 0
+        for raw in raw_stints:
+            was_created = self._upsert_stint(raw)
+            if was_created:
+                created += 1
+            elif was_created is False:
+                updated += 1
+        return {'created': created, 'updated': updated}
+
     def detect_live_session(self):
         """Return the currently live session, or None."""
         now = timezone.now()
@@ -112,6 +146,28 @@ class SessionSyncService:
             client = OpenF1Client()
             try:
                 return await client.get_drivers(session_key=session_key)
+            finally:
+                await client.close()
+
+        return async_to_sync(_fetch)()
+
+    def _fetch_pit_data(self, session_key):
+        """Call OpenF1 API for pit stop events (async bridged to sync)."""
+        async def _fetch():
+            client = OpenF1Client()
+            try:
+                return await client.get_pit_data(session_key=session_key)
+            finally:
+                await client.close()
+
+        return async_to_sync(_fetch)()
+
+    def _fetch_stints(self, session_key):
+        """Call OpenF1 API for stint data (async bridged to sync)."""
+        async def _fetch():
+            client = OpenF1Client()
+            try:
+                return await client.get_stints(session_key=session_key)
             finally:
                 await client.close()
 
@@ -226,3 +282,93 @@ class SessionSyncService:
         if not value:
             return None
         return parse_datetime(value)
+
+    def _resolve_sync_session_key(self, session_key):
+        """Resolve fallback session key when not provided."""
+        if session_key:
+            return session_key
+        return self._get_latest_session_key()
+
+    def _upsert_pit_stop(self, raw):
+        """Create or update one pit stop event from API data."""
+        session, driver = self._resolve_session_driver(raw)
+        if not session or not driver:
+            return None
+
+        timestamp = self._parse_optional_datetime(raw.get('date'))
+        lap_number = self._to_int(raw.get('lap_number'))
+        pit_duration = self._to_float(raw.get('pit_duration'))
+        if not timestamp or lap_number is None or pit_duration is None:
+            return None
+
+        _, created = PitStop.objects.update_or_create(
+            session=session,
+            driver=driver,
+            lap_number=lap_number,
+            timestamp=timestamp,
+            defaults={'pit_duration': pit_duration},
+        )
+        return created
+
+    def _upsert_stint(self, raw):
+        """Create or update one stint record from API data."""
+        session, driver = self._resolve_session_driver(raw)
+        if not session or not driver:
+            return None
+
+        stint_number = self._to_int(raw.get('stint_number'))
+        lap_start = self._to_int(raw.get('lap_start'))
+        compound = self._normalize_compound(raw.get('compound'))
+        if stint_number is None or lap_start is None or not compound:
+            return None
+
+        _, created = Stint.objects.update_or_create(
+            session=session,
+            driver=driver,
+            stint_number=stint_number,
+            defaults={
+                'compound': compound,
+                'tyre_age_at_start': self._to_int(raw.get('tyre_age_at_start'))
+                or 0,
+                'lap_start': lap_start,
+                'lap_end': self._to_int(raw.get('lap_end')),
+            },
+        )
+        return created
+
+    def _resolve_session_driver(self, raw):
+        """Resolve foreign key objects from OpenF1 payload."""
+        session_key = raw.get('session_key')
+        driver_number = raw.get('driver_number')
+        if not session_key or not driver_number:
+            return None, None
+        session = Session.objects.filter(session_key=session_key).first()
+        driver = Driver.objects.filter(driver_number=driver_number).first()
+        return session, driver
+
+    def _normalize_compound(self, value):
+        """Normalize tire compound into allowed enum value."""
+        if not value:
+            return None
+        compound = str(value).upper().strip()
+        if compound in VALID_COMPOUNDS:
+            return compound
+        return None
+
+    def _to_int(self, value):
+        """Convert value to int safely."""
+        if value in (None, ''):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _to_float(self, value):
+        """Convert value to float safely."""
+        if value in (None, ''):
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None

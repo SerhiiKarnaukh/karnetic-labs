@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from f1_pitwall.exceptions import OpenF1APIError
-from f1_pitwall.models import Driver, Session
+from f1_pitwall.models import Driver, PitStop, Session, Stint
 from f1_pitwall.services.session_sync import SessionSyncService
 from f1_pitwall.tasks.sync_sessions import sync_f1_sessions
 
@@ -58,6 +58,44 @@ MOCK_DRIVERS = [
         'team_colour': '6CD3BF',
         'headshot_url': None,
         'country_code': 'GBR',
+    },
+]
+
+MOCK_PIT_DATA = [
+    {
+        'session_key': 9158,
+        'driver_number': 1,
+        'lap_number': 15,
+        'pit_duration': 2.45,
+        'date': '2023-09-17T12:30:00+00:00',
+    },
+    {
+        'session_key': 9158,
+        'driver_number': 44,
+        'lap_number': 18,
+        'pit_duration': 2.71,
+        'date': '2023-09-17T12:35:00+00:00',
+    },
+]
+
+MOCK_STINTS = [
+    {
+        'session_key': 9158,
+        'driver_number': 1,
+        'stint_number': 1,
+        'compound': 'SOFT',
+        'tyre_age_at_start': 0,
+        'lap_start': 1,
+        'lap_end': 15,
+    },
+    {
+        'session_key': 9158,
+        'driver_number': 44,
+        'stint_number': 2,
+        'compound': 'medium',
+        'tyre_age_at_start': 3,
+        'lap_start': 19,
+        'lap_end': None,
     },
 ]
 
@@ -252,6 +290,181 @@ class SyncDriversTest(TestCase):
         self.assertEqual(Driver.objects.count(), 0)
 
 
+class SyncPitStopsTest(TestCase):
+    """Tests for sync_pit_stops()."""
+
+    def setUp(self):
+        Session.objects.create(
+            session_key=9158,
+            meeting_key=1219,
+            session_name='Race',
+            session_type='race',
+            circuit_name='Marina Bay',
+            circuit_short_name='Singapore',
+            country_name='Singapore',
+            country_code='SGP',
+            date_start='2023-09-17T12:00:00+00:00',
+            year=2023,
+        )
+        Driver.objects.create(
+            driver_number=1,
+            full_name='Max VERSTAPPEN',
+            name_acronym='VER',
+            team_name='Red Bull Racing',
+            team_colour='#3671C6',
+        )
+        Driver.objects.create(
+            driver_number=44,
+            full_name='Lewis HAMILTON',
+            name_acronym='HAM',
+            team_name='Mercedes',
+            team_colour='#6CD3BF',
+        )
+
+    @patch.object(SessionSyncService, '_fetch_pit_data', return_value=MOCK_PIT_DATA)
+    def test_creates_pit_stop_records(self, mock_fetch):
+        service = SessionSyncService()
+        result = service.sync_pit_stops(session_key=9158)
+
+        self.assertEqual(result['created'], 2)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(PitStop.objects.count(), 2)
+
+    @patch.object(SessionSyncService, '_fetch_pit_data', return_value=MOCK_PIT_DATA)
+    def test_updates_existing_pit_stop(self, mock_fetch):
+        session = Session.objects.get(session_key=9158)
+        driver = Driver.objects.get(driver_number=1)
+        PitStop.objects.create(
+            session=session,
+            driver=driver,
+            lap_number=15,
+            pit_duration=3.0,
+            timestamp='2023-09-17T12:30:00+00:00',
+        )
+
+        service = SessionSyncService()
+        result = service.sync_pit_stops(session_key=9158)
+
+        self.assertEqual(result['created'], 1)
+        self.assertEqual(result['updated'], 1)
+        pit = PitStop.objects.get(driver__driver_number=1, lap_number=15)
+        self.assertEqual(pit.pit_duration, 2.45)
+
+    @patch.object(
+        SessionSyncService,
+        '_fetch_pit_data',
+        return_value=[{'session_key': 9158, 'driver_number': 1}],
+    )
+    def test_skips_invalid_pit_payload(self, mock_fetch):
+        service = SessionSyncService()
+        result = service.sync_pit_stops(session_key=9158)
+
+        self.assertEqual(result['created'], 0)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(PitStop.objects.count(), 0)
+
+    @patch.object(SessionSyncService, '_fetch_pit_data', return_value=MOCK_PIT_DATA)
+    @patch.object(SessionSyncService, '_get_latest_session_key', return_value=9158)
+    def test_uses_latest_session_when_key_missing(self, mock_latest, mock_fetch):
+        service = SessionSyncService()
+        service.sync_pit_stops()
+
+        mock_latest.assert_called_once()
+        mock_fetch.assert_called_once_with(9158)
+
+
+class SyncStintsTest(TestCase):
+    """Tests for sync_stints()."""
+
+    def setUp(self):
+        Session.objects.create(
+            session_key=9158,
+            meeting_key=1219,
+            session_name='Race',
+            session_type='race',
+            circuit_name='Marina Bay',
+            circuit_short_name='Singapore',
+            country_name='Singapore',
+            country_code='SGP',
+            date_start='2023-09-17T12:00:00+00:00',
+            year=2023,
+        )
+        Driver.objects.create(
+            driver_number=1,
+            full_name='Max VERSTAPPEN',
+            name_acronym='VER',
+            team_name='Red Bull Racing',
+            team_colour='#3671C6',
+        )
+        Driver.objects.create(
+            driver_number=44,
+            full_name='Lewis HAMILTON',
+            name_acronym='HAM',
+            team_name='Mercedes',
+            team_colour='#6CD3BF',
+        )
+
+    @patch.object(SessionSyncService, '_fetch_stints', return_value=MOCK_STINTS)
+    def test_creates_stint_records(self, mock_fetch):
+        service = SessionSyncService()
+        result = service.sync_stints(session_key=9158)
+
+        self.assertEqual(result['created'], 2)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(Stint.objects.count(), 2)
+
+    @patch.object(SessionSyncService, '_fetch_stints', return_value=MOCK_STINTS)
+    def test_updates_existing_stint(self, mock_fetch):
+        session = Session.objects.get(session_key=9158)
+        driver = Driver.objects.get(driver_number=1)
+        Stint.objects.create(
+            session=session,
+            driver=driver,
+            stint_number=1,
+            compound='SOFT',
+            tyre_age_at_start=4,
+            lap_start=1,
+            lap_end=14,
+        )
+
+        service = SessionSyncService()
+        result = service.sync_stints(session_key=9158)
+
+        self.assertEqual(result['created'], 1)
+        self.assertEqual(result['updated'], 1)
+        stint = Stint.objects.get(driver__driver_number=1, stint_number=1)
+        self.assertEqual(stint.tyre_age_at_start, 0)
+        self.assertEqual(stint.lap_end, 15)
+
+    @patch.object(
+        SessionSyncService,
+        '_fetch_stints',
+        return_value=[{
+            'session_key': 9158,
+            'driver_number': 1,
+            'stint_number': 1,
+            'compound': 'UNKNOWN',
+            'lap_start': 1,
+        }],
+    )
+    def test_skips_invalid_compound(self, mock_fetch):
+        service = SessionSyncService()
+        result = service.sync_stints(session_key=9158)
+
+        self.assertEqual(result['created'], 0)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(Stint.objects.count(), 0)
+
+    @patch.object(SessionSyncService, '_fetch_stints', return_value=MOCK_STINTS)
+    @patch.object(SessionSyncService, '_get_latest_session_key', return_value=9158)
+    def test_uses_latest_session_when_key_missing(self, mock_latest, mock_fetch):
+        service = SessionSyncService()
+        service.sync_stints()
+
+        mock_latest.assert_called_once()
+        mock_fetch.assert_called_once_with(9158)
+
+
 class SessionTypeMapTest(TestCase):
     """Tests for session type mapping edge cases."""
 
@@ -379,6 +592,22 @@ class DetectLiveSessionTest(TestCase):
 class SyncF1SessionsCeleryTaskTest(TestCase):
     """Tests for the sync_f1_sessions Celery task — real execution path."""
 
+    def setUp(self):
+        self.pit_patcher = patch.object(
+            SessionSyncService,
+            'sync_pit_stops',
+            return_value={'created': 0, 'updated': 0},
+        )
+        self.stint_patcher = patch.object(
+            SessionSyncService,
+            'sync_stints',
+            return_value={'created': 0, 'updated': 0},
+        )
+        self.pit_patcher.start()
+        self.stint_patcher.start()
+        self.addCleanup(self.pit_patcher.stop)
+        self.addCleanup(self.stint_patcher.stop)
+
     @patch.object(
         SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
     )
@@ -394,6 +623,8 @@ class SyncF1SessionsCeleryTaskTest(TestCase):
         self.assertEqual(Driver.objects.count(), 2)
         self.assertIn('Sessions:', result)
         self.assertIn('Drivers:', result)
+        self.assertIn('PitStops:', result)
+        self.assertIn('Stints:', result)
 
     @patch.object(
         SessionSyncService, '_fetch_sessions', return_value=MOCK_SESSIONS,
