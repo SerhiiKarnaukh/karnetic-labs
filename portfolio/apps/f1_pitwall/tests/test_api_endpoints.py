@@ -600,6 +600,18 @@ class LapDataListViewTest(TestCase):
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_excludes_laps_from_other_sessions(self):
+        other_session = create_session(session_key=9402)
+        create_lap(self.session, self.driver1, lap_number=1)
+        create_lap(other_session, self.driver1, lap_number=2)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['session_key'], self.session.session_key)
+
 
 class FastestLapsViewTest(TestCase):
     """Tests for GET /f1/api/laps/<session_key>/fastest/."""
@@ -658,3 +670,26 @@ class FastestLapsViewTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 0)
+
+    def test_uses_earlier_lap_number_when_times_tie(self):
+        create_lap(self.session, self.driver1, lap_number=5, lap_duration=90.5)
+        create_lap(self.session, self.driver1, lap_number=6, lap_duration=90.5)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['lap_number'], 5)
+
+    def test_excludes_other_sessions_from_fastest(self):
+        other_session = create_session(session_key=9403)
+        create_lap(self.session, self.driver1, lap_number=1, lap_duration=91.0)
+        create_lap(other_session, self.driver1, lap_number=2, lap_duration=89.0)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['lap_number'], 1)

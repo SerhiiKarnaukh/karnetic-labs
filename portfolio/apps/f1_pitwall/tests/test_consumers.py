@@ -139,6 +139,141 @@ class TelemetryConsumerTest(TransactionTestCase):
 
         async_to_sync(_run)()
 
+    @patch('f1_pitwall.consumers.telemetry.OpenF1Client')
+    def test_replay_requires_subscribe_first(self, mock_client_cls):
+        client = MagicMock()
+        client.get_car_data = AsyncMock(return_value=[])
+        client.get_lap_data = AsyncMock(return_value=[])
+        client.close = AsyncMock()
+        mock_client_cls.return_value = client
+
+        async def _run():
+            consumer = self._build_consumer()
+            await consumer.connect()
+            await consumer.receive(text_data=json.dumps({
+                'action': 'replay',
+                'lap': 12,
+            }))
+
+            sent_payloads = [
+                json.loads(kwargs['text_data'])
+                for _, kwargs in consumer.send.await_args_list
+            ]
+            errors = [msg for msg in sent_payloads if msg.get('type') == 'error']
+            self.assertEqual(len(errors), 1)
+            self.assertIn('subscribed drivers', errors[0]['message'])
+
+            await consumer.disconnect(1000)
+
+        async_to_sync(_run)()
+
+    @patch('f1_pitwall.consumers.telemetry.OpenF1Client')
+    def test_invalid_json_payload_returns_error(self, mock_client_cls):
+        client = MagicMock()
+        client.get_car_data = AsyncMock(return_value=[])
+        client.close = AsyncMock()
+        mock_client_cls.return_value = client
+
+        async def _run():
+            consumer = self._build_consumer()
+            await consumer.connect()
+            await consumer.receive(text_data='{"action":')
+
+            sent_payloads = [
+                json.loads(kwargs['text_data'])
+                for _, kwargs in consumer.send.await_args_list
+            ]
+            self.assertIn(
+                {'type': 'error', 'message': 'Invalid JSON payload.'},
+                sent_payloads,
+            )
+
+            await consumer.disconnect(1000)
+
+        async_to_sync(_run)()
+
+    @patch('f1_pitwall.consumers.telemetry.OpenF1Client')
+    def test_unknown_action_returns_error(self, mock_client_cls):
+        client = MagicMock()
+        client.get_car_data = AsyncMock(return_value=[])
+        client.close = AsyncMock()
+        mock_client_cls.return_value = client
+
+        async def _run():
+            consumer = self._build_consumer()
+            await consumer.connect()
+            await consumer.receive(text_data=json.dumps({
+                'action': 'launch',
+            }))
+
+            sent_payloads = [
+                json.loads(kwargs['text_data'])
+                for _, kwargs in consumer.send.await_args_list
+            ]
+            errors = [msg for msg in sent_payloads if msg.get('type') == 'error']
+            self.assertEqual(len(errors), 1)
+            self.assertIn('Unknown action', errors[0]['message'])
+
+            await consumer.disconnect(1000)
+
+        async_to_sync(_run)()
+
+    @patch('f1_pitwall.consumers.telemetry.POLL_INTERVAL_SECONDS', 0.01)
+    @patch('f1_pitwall.consumers.telemetry.OpenF1Client')
+    def test_e2e_subscribe_stream_unsubscribe_replay_blocked(self, mock_client_cls):
+        client = MagicMock()
+        client.get_car_data = AsyncMock(side_effect=[
+            [{'date': '2026-03-01T12:00:00Z', 'speed': 322}],
+            [],
+            [],
+        ])
+        client.get_lap_data = AsyncMock(return_value=[
+            {'lap_number': 15, 'lap_duration': 90.1},
+        ])
+        client.close = AsyncMock()
+        mock_client_cls.return_value = client
+
+        async def _run():
+            consumer = self._build_consumer()
+            await consumer.connect()
+
+            await consumer.receive(text_data=json.dumps({
+                'action': 'subscribe',
+                'drivers': [44],
+            }))
+            await asyncio.sleep(0.02)
+
+            await consumer.receive(text_data=json.dumps({'action': 'unsubscribe'}))
+            await consumer.receive(text_data=json.dumps({
+                'action': 'replay',
+                'lap': 15,
+            }))
+
+            sent_payloads = [
+                json.loads(kwargs['text_data'])
+                for _, kwargs in consumer.send.await_args_list
+            ]
+            telemetry_messages = [
+                msg for msg in sent_payloads if msg.get('type') == 'telemetry'
+            ]
+            error_messages = [
+                msg for msg in sent_payloads if msg.get('type') == 'error'
+            ]
+
+            self.assertTrue(telemetry_messages)
+            self.assertEqual(telemetry_messages[0]['driver'], 44)
+            self.assertEqual(telemetry_messages[0]['data']['speed'], 322)
+            self.assertTrue(
+                any('Replay requires subscribed drivers.' == msg['message']
+                    for msg in error_messages),
+            )
+            client.get_lap_data.assert_not_awaited()
+
+            await consumer.disconnect(1000)
+            client.close.assert_awaited_once()
+
+        async_to_sync(_run)()
+
 
 class RaceControlConsumerTest(TransactionTestCase):
     """Broadcast handler tests for RaceControlConsumer."""
