@@ -55,6 +55,26 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         names = [option.name for option in options]
         self.assertIn('one_stop', names)
 
+    def test_one_stop_note_includes_optimal_window_and_state(self):
+        options = self.engine.calculate_strategies(**self._base_input(current_lap=10))
+        one_stop = next(option for option in options if option.name == 'one_stop')
+        self.assertIn('Optimal window L12-18', one_stop.notes)
+        self.assertIn('(before_window)', one_stop.notes)
+
+    def test_one_stop_from_inside_window_selects_valid_future_window_lap(self):
+        options = self.engine.calculate_strategies(**self._base_input(current_lap=14))
+        one_stop = next(option for option in options if option.name == 'one_stop')
+        pit_lap = one_stop.pit_stops[0].lap
+        self.assertGreaterEqual(pit_lap, 15)
+        self.assertLessEqual(pit_lap, 18)
+        self.assertIn('(in_window)', one_stop.notes)
+
+    def test_one_stop_after_window_pits_immediately_next_lap(self):
+        options = self.engine.calculate_strategies(**self._base_input(current_lap=22))
+        one_stop = next(option for option in options if option.name == 'one_stop')
+        self.assertEqual(one_stop.pit_stops[0].lap, 23)
+        self.assertIn('(past_window)', one_stop.notes)
+
     def test_generates_two_stop_when_more_than_twenty_laps_remaining(self):
         options = self.engine.calculate_strategies(**self._base_input(current_lap=20))
         names = [option.name for option in options]
@@ -76,6 +96,13 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
     def test_skips_one_stop_when_window_opens_in_less_than_two_laps(self):
         options = self.engine.calculate_strategies(
             **self._base_input(current_lap=11, current_compound=COMPOUND_SOFT),
+        )
+        names = [option.name for option in options]
+        self.assertNotIn('one_stop', names)
+
+    def test_skips_one_stop_when_only_one_lap_remains(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(current_lap=56, total_laps=57),
         )
         names = [option.name for option in options]
         self.assertNotIn('one_stop', names)
@@ -107,3 +134,33 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
             current_tyre_age=3,
         )
         self.assertGreater(one_stop, no_stop)
+
+    def test_detect_optimal_window_before(self):
+        window = self.engine._detect_optimal_window(COMPOUND_SOFT, current_lap=8)
+        self.assertEqual(window['state'], 'before_window')
+        self.assertEqual(window['laps_to_open'], 4)
+
+    def test_detect_optimal_window_inside(self):
+        window = self.engine._detect_optimal_window(COMPOUND_SOFT, current_lap=12)
+        self.assertEqual(window['state'], 'in_window')
+        self.assertEqual(window['laps_to_open'], 0)
+
+    def test_detect_optimal_window_after(self):
+        window = self.engine._detect_optimal_window(COMPOUND_SOFT, current_lap=20)
+        self.assertEqual(window['state'], 'past_window')
+
+    def test_one_stop_candidates_before_window(self):
+        candidates = self.engine._one_stop_candidates(
+            current_lap=10,
+            total_laps=57,
+            compound=COMPOUND_SOFT,
+        )
+        self.assertEqual(candidates, [12, 13, 14, 15, 16, 17, 18])
+
+    def test_one_stop_candidates_blocked_by_24_hour_rule(self):
+        candidates = self.engine._one_stop_candidates(
+            current_lap=11,
+            total_laps=57,
+            compound=COMPOUND_SOFT,
+        )
+        self.assertEqual(candidates, [])

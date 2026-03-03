@@ -150,18 +150,22 @@ class StrategyEngine:
         weather_forecast,
         gap_behind,
     ):
-        profile = self._profile(current_compound)
-        laps_to_window = profile.optimal_window_start - current_lap
-        if 0 < laps_to_window < 2:
+        if current_lap >= total_laps - 1:
             return None
 
-        pit_lap = self._one_stop_pit_lap(current_lap, profile)
+        pit_lap = self._best_one_stop_pit_lap(
+            current_lap, total_laps, current_compound, tyre_age, base_lap_time,
+        )
+        if pit_lap is None:
+            return None
+
         next_compound = self._compound_for_remaining(total_laps - pit_lap)
         stops = (StrategyStop(lap=pit_lap, compound=next_compound),)
         total_time = self.simulate_race_time(
             current_lap, total_laps, stops, base_lap_time,
             current_compound, tyre_age,
         )
+        window = self._detect_optimal_window(current_compound, current_lap)
         return self._build_option(
             name='one_stop',
             total_time=total_time,
@@ -172,7 +176,10 @@ class StrategyEngine:
             current_tyre_age=tyre_age,
             undercut=False,
             overcut=gap_behind < 3.0,
-            notes=f"Pit in optimal window around lap {pit_lap}.",
+            notes=(
+                f"Optimal window L{window['start']}-{window['end']}; "
+                f"selected pit lap {pit_lap} ({window['state']})."
+            ),
         )
 
     def _two_stop_option(
@@ -339,11 +346,72 @@ class StrategyEngine:
         laps_over = end_age - profile.cliff_lap
         return min(1.0, laps_over / max(1, stint_laps))
 
-    def _one_stop_pit_lap(self, current_lap, profile):
-        return max(
-            current_lap + 1,
-            min(profile.optimal_window_end, profile.optimal_window_start),
+    def _best_one_stop_pit_lap(
+        self, current_lap, total_laps, current_compound, tyre_age, base_lap_time,
+    ):
+        candidates = self._one_stop_candidates(
+            current_lap, total_laps, current_compound,
         )
+        if not candidates:
+            return None
+
+        best_lap = None
+        best_time = None
+        for lap in candidates:
+            compound = self._compound_for_remaining(total_laps - lap)
+            total_time = self.simulate_race_time(
+                start_lap=current_lap,
+                total_laps=total_laps,
+                stops=(StrategyStop(lap=lap, compound=compound),),
+                base_lap_time=base_lap_time,
+                current_compound=current_compound,
+                current_tyre_age=tyre_age,
+            )
+            if best_time is None or total_time < best_time:
+                best_time = total_time
+                best_lap = lap
+        return best_lap
+
+    def _one_stop_candidates(self, current_lap, total_laps, compound):
+        window = self._detect_optimal_window(compound, current_lap)
+        latest_pit_lap = total_laps - 1
+        if latest_pit_lap <= current_lap:
+            return []
+
+        if window['state'] == 'before_window':
+            if window['laps_to_open'] < 2:
+                return []
+            start = max(current_lap + 1, window['start'])
+            end = min(window['end'], latest_pit_lap)
+            if start > end:
+                return []
+            return list(range(start, end + 1))
+
+        if window['state'] == 'in_window':
+            start = current_lap + 1
+            end = min(window['end'], latest_pit_lap)
+            if start > end:
+                return []
+            return list(range(start, end + 1))
+
+        return [current_lap + 1] if current_lap + 1 <= latest_pit_lap else []
+
+    def _detect_optimal_window(self, compound, current_lap):
+        profile = self._profile(compound)
+        start = profile.optimal_window_start
+        end = profile.optimal_window_end
+        if current_lap < start:
+            state = 'before_window'
+        elif current_lap <= end:
+            state = 'in_window'
+        else:
+            state = 'past_window'
+        return {
+            'start': start,
+            'end': end,
+            'state': state,
+            'laps_to_open': max(0, start - current_lap),
+        }
 
     def _compound_for_remaining(self, remaining_laps):
         if remaining_laps > 20:
