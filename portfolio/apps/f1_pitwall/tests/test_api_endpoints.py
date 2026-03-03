@@ -7,7 +7,13 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from unittest.mock import patch
 
-from f1_pitwall.models import Driver, F1UserProfile, Session
+from f1_pitwall.models import (
+    Driver,
+    F1UserProfile,
+    LapData,
+    Session,
+    TelemetrySnapshot,
+)
 
 User = get_user_model()
 
@@ -52,6 +58,37 @@ def create_driver(**overrides):
     }
     defaults.update(overrides)
     return Driver.objects.create(**defaults)
+
+
+def create_telemetry(session, driver, timestamp, **overrides):
+    defaults = {
+        'session': session,
+        'driver': driver,
+        'timestamp': timestamp,
+        'speed': 300,
+        'rpm': 11000,
+        'throttle': 90,
+        'brake': 0,
+        'gear': 7,
+        'drs': 10,
+    }
+    defaults.update(overrides)
+    return TelemetrySnapshot.objects.create(**defaults)
+
+
+def create_lap(session, driver, lap_number, **overrides):
+    defaults = {
+        'session': session,
+        'driver': driver,
+        'lap_number': lap_number,
+        'lap_duration': 90.5,
+        'sector_1': 28.1,
+        'sector_2': 35.2,
+        'sector_3': 27.2,
+        'speed_trap': 325.0,
+    }
+    defaults.update(overrides)
+    return LapData.objects.create(**defaults)
 
 
 class F1RegisterViewTest(TestCase):
@@ -377,3 +414,247 @@ class DriverDetailViewTest(TestCase):
         res = self.client.get(url)
 
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class TelemetryListViewTest(TestCase):
+    """Tests for GET /f1/api/telemetry/<session_key>/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='telem@example.com')
+        self.session = create_session(session_key=9158)
+        self.driver1 = create_driver(driver_number=1)
+        self.driver44 = create_driver(
+            driver_number=44,
+            full_name='Lewis HAMILTON',
+            name_acronym='HAM',
+            team_name='Mercedes',
+            team_colour='#27F4D2',
+        )
+        self.url = reverse(
+            'f1_pitwall:telemetry-list',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_telemetry_for_session(self):
+        create_telemetry(self.session, self.driver1, '2024-03-02T15:00:01Z')
+        create_telemetry(self.session, self.driver44, '2024-03-02T15:00:02Z')
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+        self.assertEqual(res.data[0]['driver_number'], 1)
+        self.assertEqual(res.data[1]['driver_number'], 44)
+
+    def test_filter_by_driver(self):
+        create_telemetry(self.session, self.driver1, '2024-03-02T15:00:01Z')
+        create_telemetry(self.session, self.driver44, '2024-03-02T15:00:02Z')
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url, {'driver': 44})
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['driver_number'], 44)
+
+    def test_filter_by_date_range(self):
+        create_telemetry(self.session, self.driver1, '2024-03-02T15:00:01Z')
+        create_telemetry(self.session, self.driver1, '2024-03-02T15:00:05Z')
+        create_telemetry(self.session, self.driver1, '2024-03-02T15:00:10Z')
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url, {
+            'date_from': '2024-03-02T15:00:04Z',
+            'date_to': '2024-03-02T15:00:09Z',
+        })
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['timestamp'], '2024-03-02T15:00:05Z')
+
+    def test_nonexistent_session_returns_404(self):
+        url = reverse(
+            'f1_pitwall:telemetry-list',
+            kwargs={'session_key': 99999},
+        )
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class TelemetryLatestViewTest(TestCase):
+    """Tests for GET /f1/api/telemetry/<session_key>/latest/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='telem_latest@example.com')
+        self.session = create_session(session_key=9300)
+        self.driver1 = create_driver(driver_number=1)
+        self.driver44 = create_driver(
+            driver_number=44,
+            full_name='Lewis HAMILTON',
+            name_acronym='HAM',
+            team_name='Mercedes',
+            team_colour='#27F4D2',
+        )
+        self.url = reverse(
+            'f1_pitwall:telemetry-latest',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_returns_latest_per_driver(self):
+        create_telemetry(self.session, self.driver1, '2024-03-02T15:00:01Z')
+        create_telemetry(
+            self.session, self.driver1, '2024-03-02T15:00:05Z', speed=305,
+        )
+        create_telemetry(self.session, self.driver44, '2024-03-02T15:00:02Z')
+        create_telemetry(
+            self.session, self.driver44, '2024-03-02T15:00:06Z', speed=306,
+        )
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+        self.assertEqual(res.data[0]['driver_number'], 1)
+        self.assertEqual(res.data[0]['speed'], 305)
+        self.assertEqual(res.data[1]['driver_number'], 44)
+        self.assertEqual(res.data[1]['speed'], 306)
+
+    def test_empty_session_returns_empty_list(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 0)
+
+
+class LapDataListViewTest(TestCase):
+    """Tests for GET /f1/api/laps/<session_key>/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='laps@example.com')
+        self.session = create_session(session_key=9400)
+        self.driver1 = create_driver(driver_number=1)
+        self.driver16 = create_driver(
+            driver_number=16,
+            full_name='Charles LECLERC',
+            name_acronym='LEC',
+            team_name='Ferrari',
+            team_colour='#E8002D',
+        )
+        self.url = reverse(
+            'f1_pitwall:lap-list',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_lists_laps_for_session(self):
+        create_lap(self.session, self.driver1, lap_number=1, lap_duration=91.1)
+        create_lap(self.session, self.driver1, lap_number=2, lap_duration=90.7)
+        create_lap(self.session, self.driver16, lap_number=1, lap_duration=91.5)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 3)
+        self.assertEqual(res.data[0]['driver_number'], 1)
+        self.assertEqual(res.data[0]['lap_number'], 1)
+        self.assertEqual(res.data[2]['driver_number'], 16)
+
+    def test_filters_by_driver(self):
+        create_lap(self.session, self.driver1, lap_number=1)
+        create_lap(self.session, self.driver16, lap_number=1)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url, {'driver': 16})
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['driver_number'], 16)
+
+    def test_nonexistent_session_returns_404(self):
+        url = reverse(
+            'f1_pitwall:lap-list',
+            kwargs={'session_key': 99999},
+        )
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class FastestLapsViewTest(TestCase):
+    """Tests for GET /f1/api/laps/<session_key>/fastest/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='fastlaps@example.com')
+        self.session = create_session(session_key=9401)
+        self.driver1 = create_driver(driver_number=1)
+        self.driver16 = create_driver(
+            driver_number=16,
+            full_name='Charles LECLERC',
+            name_acronym='LEC',
+            team_name='Ferrari',
+            team_colour='#E8002D',
+        )
+        self.url = reverse(
+            'f1_pitwall:lap-fastest',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_returns_fastest_lap_per_driver(self):
+        create_lap(self.session, self.driver1, lap_number=1, lap_duration=91.2)
+        create_lap(self.session, self.driver1, lap_number=2, lap_duration=90.8)
+        create_lap(self.session, self.driver16, lap_number=1, lap_duration=92.1)
+        create_lap(self.session, self.driver16, lap_number=2, lap_duration=91.9)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+        self.assertEqual(res.data[0]['driver_number'], 1)
+        self.assertEqual(res.data[0]['lap_duration'], 90.8)
+        self.assertEqual(res.data[1]['driver_number'], 16)
+        self.assertEqual(res.data[1]['lap_duration'], 91.9)
+
+    def test_ignores_incomplete_laps(self):
+        create_lap(self.session, self.driver1, lap_number=1, lap_duration=None)
+        create_lap(self.session, self.driver1, lap_number=2, lap_duration=91.0)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['lap_number'], 2)
+
+    def test_empty_session_returns_empty_list(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 0)

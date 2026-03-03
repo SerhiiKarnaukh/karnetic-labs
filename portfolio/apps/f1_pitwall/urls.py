@@ -4,11 +4,13 @@ from django.urls import path
 
 from f1_pitwall.views.auth import F1MeView, F1RegisterView
 from f1_pitwall.views.drivers import DriverDetailView, DriverListView
+from f1_pitwall.views.laps import FastestLapsView, LapDataListView
 from f1_pitwall.views.session import (
     SessionDetailView,
     SessionListView,
     SessionLiveView,
 )
+from f1_pitwall.views.telemetry import TelemetryLatestView, TelemetryListView
 
 app_name = 'f1_pitwall'
 
@@ -52,5 +54,29 @@ urlpatterns = [
         'api/drivers/<int:driver_number>/',
         DriverDetailView.as_view(),
         name='driver-detail',
+    ),
+
+    # Telemetry
+    path(
+        'api/telemetry/<int:session_key>/',
+        TelemetryListView.as_view(),
+        name='telemetry-list',
+    ),
+    path(
+        'api/telemetry/<int:session_key>/latest/',
+        TelemetryLatestView.as_view(),
+        name='telemetry-latest',
+    ),
+
+    # Laps
+    path(
+        'api/laps/<int:session_key>/',
+        LapDataListView.as_view(),
+        name='lap-list',
+    ),
+    path(
+        'api/laps/<int:session_key>/fastest/',
+        FastestLapsView.as_view(),
+        name='lap-fastest',
     ),
 ]
