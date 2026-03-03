@@ -143,26 +143,59 @@ class TelemetryConsumerTest(TransactionTestCase):
 class RaceControlConsumerTest(TransactionTestCase):
     """Broadcast handler tests for RaceControlConsumer."""
 
+    def _build_consumer(self):
+        consumer = RaceControlConsumer()
+        consumer.scope = {
+            'type': 'websocket',
+            'path': '/ws/f1/race-control/',
+        }
+        consumer.channel_name = 'race-control-test-channel'
+        consumer.channel_layer = MagicMock()
+        consumer.channel_layer.group_add = AsyncMock()
+        consumer.channel_layer.group_discard = AsyncMock()
+        consumer.send = AsyncMock()
+        consumer.accept = AsyncMock()
+        return consumer
+
+    def test_connect_joins_group_and_accepts(self):
+        async def _run():
+            consumer = self._build_consumer()
+            await consumer.connect()
+            consumer.channel_layer.group_add.assert_awaited_once_with(
+                'race_control', 'race-control-test-channel',
+            )
+            consumer.accept.assert_awaited_once()
+
+        async_to_sync(_run)()
+
+    def test_disconnect_leaves_group(self):
+        async def _run():
+            consumer = self._build_consumer()
+            await consumer.disconnect(1000)
+            consumer.channel_layer.group_discard.assert_awaited_once_with(
+                'race_control', 'race-control-test-channel',
+            )
+
+        async_to_sync(_run)()
+
+    def test_rejects_client_messages_in_broadcast_only_mode(self):
+        async def _run():
+            consumer = self._build_consumer()
+            await consumer.receive(text_data='{"action":"subscribe"}')
+            consumer.send.assert_awaited_once_with(
+                text_data='{"type": "error", "message": "Race control stream is broadcast-only."}',
+            )
+
+        async_to_sync(_run)()
+
     def test_race_control_message_sends_json(self):
         async def _run():
-            consumer = RaceControlConsumer()
-            consumer.scope = {
-                'type': 'websocket',
-                'path': '/ws/f1/race-control/',
-            }
-            consumer.channel_name = 'test-channel'
-            consumer.channel_layer = InMemoryChannelLayer()
-            consumer.send = AsyncMock()
-            consumer.accept = AsyncMock()
-
-            await consumer.connect()
+            consumer = self._build_consumer()
             await consumer.race_control_message({
                 'data': {'type': 'race_control', 'message': 'SC DEPLOYED'},
             })
             consumer.send.assert_awaited_once_with(
                 text_data='{"type": "race_control", "message": "SC DEPLOYED"}',
             )
-
-            await consumer.disconnect(1000)
 
         async_to_sync(_run)()
