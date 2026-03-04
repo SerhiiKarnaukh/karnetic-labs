@@ -195,17 +195,20 @@ class StrategyEngine:
         if remaining <= 20:
             return None
 
-        first = current_lap + max(1, remaining // 3)
-        second = current_lap + max(2, (2 * remaining) // 3)
-        second = min(second, total_laps)
-        stops = (
-            StrategyStop(lap=first, compound=COMPOUND_HARD),
-            StrategyStop(lap=second, compound=COMPOUND_SOFT),
+        plan = self._best_two_stop_plan(
+            current_lap, total_laps, current_compound, tyre_age, base_lap_time,
         )
+        if plan is None:
+            return None
+
+        first_lap, second_lap, stops = plan
         total_time = self.simulate_race_time(
             current_lap, total_laps, stops, base_lap_time,
             current_compound, tyre_age,
         )
+        stint_1 = first_lap - current_lap
+        stint_2 = second_lap - first_lap
+        stint_3 = total_laps - second_lap + 1
         return self._build_option(
             name='two_stop',
             total_time=total_time,
@@ -216,7 +219,10 @@ class StrategyEngine:
             current_tyre_age=tyre_age,
             undercut=False,
             overcut=False,
-            notes='Split remaining race into three stints.',
+            notes=(
+                f"Third split stints: {stint_1}/{stint_2}/{stint_3} laps; "
+                f"pits on L{first_lap} and L{second_lap}."
+            ),
         )
 
     def _undercut_option(
@@ -412,6 +418,74 @@ class StrategyEngine:
             'state': state,
             'laps_to_open': max(0, start - current_lap),
         }
+
+    def _best_two_stop_plan(
+        self, current_lap, total_laps, current_compound, tyre_age, base_lap_time,
+    ):
+        split_first, split_second = self._two_stop_split_laps(current_lap, total_laps)
+        candidates = self._two_stop_candidates(
+            split_first, split_second, current_lap, total_laps,
+        )
+        if not candidates:
+            return None
+
+        best = None
+        best_time = None
+        for first_lap, second_lap in candidates:
+            stops = self._build_two_stop_stops(first_lap, second_lap, total_laps)
+            total_time = self.simulate_race_time(
+                start_lap=current_lap,
+                total_laps=total_laps,
+                stops=stops,
+                base_lap_time=base_lap_time,
+                current_compound=current_compound,
+                current_tyre_age=tyre_age,
+            )
+            if best_time is None or total_time < best_time:
+                best_time = total_time
+                best = (first_lap, second_lap, stops)
+        return best
+
+    def _two_stop_split_laps(self, current_lap, total_laps):
+        remaining = total_laps - current_lap + 1
+        base = remaining // 3
+        remainder = remaining % 3
+        stint_1 = base + (1 if remainder > 0 else 0)
+        stint_2 = base + (1 if remainder > 1 else 0)
+        first_lap = current_lap + stint_1
+        second_lap = first_lap + stint_2
+        return first_lap, second_lap
+
+    def _two_stop_candidates(
+        self, split_first, split_second, current_lap, total_laps,
+    ):
+        latest_second = total_laps - 1
+        if latest_second <= current_lap + 1:
+            return []
+
+        candidates = set()
+        for first_offset in (-1, 0, 1):
+            for second_offset in (-1, 0, 1):
+                first = split_first + first_offset
+                second = split_second + second_offset
+                if first <= current_lap:
+                    continue
+                if second <= first:
+                    continue
+                if second > latest_second:
+                    continue
+                candidates.add((first, second))
+        return sorted(candidates)
+
+    def _build_two_stop_stops(self, first_lap, second_lap, total_laps):
+        middle_stint = second_lap - first_lap
+        final_stint = total_laps - second_lap + 1
+        first_compound = COMPOUND_HARD if middle_stint >= 10 else COMPOUND_MEDIUM
+        second_compound = COMPOUND_SOFT if final_stint <= 15 else COMPOUND_MEDIUM
+        return (
+            StrategyStop(lap=first_lap, compound=first_compound),
+            StrategyStop(lap=second_lap, compound=second_compound),
+        )
 
     def _compound_for_remaining(self, remaining_laps):
         if remaining_laps > 20:

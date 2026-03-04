@@ -80,6 +80,26 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         names = [option.name for option in options]
         self.assertIn('two_stop', names)
 
+    def test_two_stop_has_two_valid_future_stop_laps(self):
+        options = self.engine.calculate_strategies(**self._base_input(current_lap=20))
+        two_stop = next(option for option in options if option.name == 'two_stop')
+        first = two_stop.pit_stops[0].lap
+        second = two_stop.pit_stops[1].lap
+        self.assertGreater(first, 20)
+        self.assertGreater(second, first)
+        self.assertLessEqual(second, 56)
+
+    def test_two_stop_note_contains_third_split_summary(self):
+        options = self.engine.calculate_strategies(**self._base_input(current_lap=20))
+        two_stop = next(option for option in options if option.name == 'two_stop')
+        self.assertIn('Third split stints:', two_stop.notes)
+        self.assertIn('pits on L', two_stop.notes)
+
+    def test_two_stop_skipped_when_twenty_or_fewer_laps_remaining(self):
+        options = self.engine.calculate_strategies(**self._base_input(current_lap=38))
+        names = [option.name for option in options]
+        self.assertNotIn('two_stop', names)
+
     def test_generates_undercut_when_gap_ahead_within_pit_loss(self):
         options = self.engine.calculate_strategies(**self._base_input(gap_ahead=10.0))
         names = [option.name for option in options]
@@ -164,3 +184,54 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
             compound=COMPOUND_SOFT,
         )
         self.assertEqual(candidates, [])
+
+    def test_two_stop_split_laps_even_thirds(self):
+        first, second = self.engine._two_stop_split_laps(current_lap=20, total_laps=57)
+        self.assertEqual(first, 33)
+        self.assertEqual(second, 46)
+
+    def test_two_stop_split_stints_differ_by_at_most_one_lap(self):
+        current_lap = 21
+        total_laps = 57
+        first, second = self.engine._two_stop_split_laps(current_lap, total_laps)
+        stints = [
+            first - current_lap,
+            second - first,
+            total_laps - second + 1,
+        ]
+        self.assertLessEqual(max(stints) - min(stints), 1)
+
+    def test_two_stop_candidates_are_unique_and_ordered(self):
+        candidates = self.engine._two_stop_candidates(
+            split_first=33,
+            split_second=46,
+            current_lap=20,
+            total_laps=57,
+        )
+        self.assertEqual(candidates, sorted(set(candidates)))
+
+    def test_two_stop_candidates_respect_lap_bounds(self):
+        candidates = self.engine._two_stop_candidates(
+            split_first=33,
+            split_second=46,
+            current_lap=20,
+            total_laps=57,
+        )
+        for first, second in candidates:
+            self.assertGreater(first, 20)
+            self.assertGreater(second, first)
+            self.assertLessEqual(second, 56)
+
+    def test_best_two_stop_plan_returns_valid_plan(self):
+        plan = self.engine._best_two_stop_plan(
+            current_lap=20,
+            total_laps=57,
+            current_compound=COMPOUND_SOFT,
+            tyre_age=8,
+            base_lap_time=90.0,
+        )
+        self.assertIsNotNone(plan)
+        first, second, stops = plan
+        self.assertEqual(len(stops), 2)
+        self.assertEqual(stops[0].lap, first)
+        self.assertEqual(stops[1].lap, second)
