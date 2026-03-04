@@ -10,6 +10,7 @@ from f1_pitwall.views.session import (
     SessionListView,
     SessionLiveView,
 )
+from f1_pitwall.views.strategy import StrategyCalculateView
 from f1_pitwall.views.telemetry import TelemetryLatestView, TelemetryListView
 
 app_name = 'f1_pitwall'
@@ -78,5 +79,12 @@ urlpatterns = [
         'api/laps/<int:session_key>/fastest/',
         FastestLapsView.as_view(),
         name='lap-fastest',
+    ),
+
+    # Strategy
+    path(
+        'api/strategy/<int:session_key>/calculate/',
+        StrategyCalculateView.as_view(),
+        name='strategy-calculate',
     ),
 ]

@@ -693,3 +693,71 @@ class FastestLapsViewTest(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['lap_number'], 1)
+
+
+class StrategyCalculateViewTest(TestCase):
+    """Tests for POST /f1/api/strategy/<session_key>/calculate/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='strategy@example.com')
+        self.session = create_session(session_key=9500)
+        self.url = reverse(
+            'f1_pitwall:strategy-calculate',
+            kwargs={'session_key': self.session.session_key},
+        )
+        self.payload = {
+            'current_lap': 20,
+            'total_laps': 57,
+            'current_compound': 'SOFT',
+            'tyre_age': 10,
+            'base_lap_time': 90.0,
+            'weather_forecast': {'rain_probability': 0.3, 'rain_eta_laps': 9},
+            'gap_ahead': 8.0,
+            'gap_behind': 5.0,
+        }
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_nonexistent_session_returns_404(self):
+        url = reverse(
+            'f1_pitwall:strategy-calculate',
+            kwargs={'session_key': 99999},
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.post(url, self.payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_returns_strategy_list_with_expected_fields(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.post(self.url, self.payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['session_key'], self.session.session_key)
+        self.assertIn('count', res.data)
+        self.assertIn('strategies', res.data)
+        self.assertTrue(len(res.data['strategies']) >= 1)
+
+        strategy = res.data['strategies'][0]
+        self.assertIn('name', strategy)
+        self.assertIn('total_time', strategy)
+        self.assertIn('pit_stops', strategy)
+        self.assertIn('tire_risk', strategy)
+        self.assertIn('weather_risk', strategy)
+        self.assertIn('undercut_potential', strategy)
+        self.assertIn('overcut_potential', strategy)
+        self.assertIn('notes', strategy)
+        self.assertIn('score', strategy)
+
+    def test_invalid_payload_returns_400(self):
+        invalid = dict(self.payload)
+        invalid['current_lap'] = 58
+        invalid['total_laps'] = 57
+
+        self.client.force_authenticate(self.user)
+        res = self.client.post(self.url, invalid, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('current_lap', res.data)
