@@ -4,6 +4,7 @@ from django.test import SimpleTestCase
 
 from f1_pitwall.constants import (
     COMPOUND_HARD,
+    COMPOUND_INTERMEDIATE,
     COMPOUND_MEDIUM,
     COMPOUND_SOFT,
     COMPOUND_WET,
@@ -137,6 +138,69 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         self.assertIsNotNone(wet)
         self.assertEqual(wet.pit_stops[0].compound, COMPOUND_WET)
 
+    def test_wet_switch_uses_intermediate_for_moderate_rain(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(weather_forecast={'rain_probability': 0.6, 'rain_eta_laps': 3}),
+        )
+        wet = next((option for option in options if option.name == 'wet_switch'), None)
+        self.assertIsNotNone(wet)
+        self.assertEqual(wet.pit_stops[0].compound, COMPOUND_INTERMEDIATE)
+
+    def test_wet_switch_uses_wet_when_heavy_rain_flag_present(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(weather_forecast={
+                'rain_probability': 0.6,
+                'rain_eta_laps': 3,
+                'heavy_rain': True,
+            }),
+        )
+        wet = next((option for option in options if option.name == 'wet_switch'), None)
+        self.assertIsNotNone(wet)
+        self.assertEqual(wet.pit_stops[0].compound, COMPOUND_WET)
+
+    def test_wet_switch_not_generated_when_rain_probability_too_low(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(weather_forecast={'rain_probability': 0.49, 'rain_eta_laps': 2}),
+        )
+        names = [option.name for option in options]
+        self.assertNotIn('wet_switch', names)
+
+    def test_wet_switch_not_generated_when_rain_eta_is_beyond_finish(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(
+                current_lap=50,
+                total_laps=57,
+                weather_forecast={'rain_probability': 0.8, 'rain_eta_laps': 10},
+            ),
+        )
+        names = [option.name for option in options]
+        self.assertNotIn('wet_switch', names)
+
+    def test_wet_switch_not_generated_when_already_on_target_compound(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(
+                current_compound=COMPOUND_WET,
+                weather_forecast={'rain_probability': 0.9, 'rain_eta_laps': 2},
+            ),
+        )
+        names = [option.name for option in options]
+        self.assertNotIn('wet_switch', names)
+
+    def test_wet_switch_accepts_percentage_probability_input(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(weather_forecast={'rain_probability': 80, 'rain_eta_laps': 2}),
+        )
+        names = [option.name for option in options]
+        self.assertIn('wet_switch', names)
+
+    def test_wet_switch_note_contains_probability_and_eta(self):
+        options = self.engine.calculate_strategies(
+            **self._base_input(weather_forecast={'rain_probability': 0.8, 'rain_eta_laps': 2}),
+        )
+        wet = next(option for option in options if option.name == 'wet_switch')
+        self.assertIn('Rain 80%', wet.notes)
+        self.assertIn('in ~2 laps', wet.notes)
+
     def test_skips_one_stop_when_window_opens_in_less_than_two_laps(self):
         options = self.engine.calculate_strategies(
             **self._base_input(current_lap=11, current_compound=COMPOUND_SOFT),
@@ -170,6 +234,17 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         self.assertIn('projected_gain', analysis)
         self.assertIn('potential', analysis)
         self.assertTrue(analysis['viable'])
+
+    def test_analyze_wet_switch_viable_payload(self):
+        analysis = self.engine._analyze_wet_switch(
+            current_lap=20,
+            total_laps=57,
+            current_compound=COMPOUND_SOFT,
+            weather_forecast={'rain_probability': 0.8, 'rain_eta_laps': 3},
+        )
+        self.assertTrue(analysis['viable'])
+        self.assertEqual(analysis['target_compound'], COMPOUND_WET)
+        self.assertEqual(analysis['stop_lap'], 23)
 
     def test_result_is_sorted_by_total_time(self):
         options = self.engine.calculate_strategies(**self._base_input(gap_ahead=10.0))

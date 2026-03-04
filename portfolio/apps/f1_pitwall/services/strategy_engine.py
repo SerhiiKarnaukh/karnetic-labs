@@ -276,13 +276,14 @@ class StrategyEngine:
         base_lap_time,
         weather_forecast,
     ):
-        rain_probability = self._rain_probability(weather_forecast)
-        if rain_probability <= 0.5:
+        analysis = self._analyze_wet_switch(
+            current_lap, total_laps, current_compound, weather_forecast,
+        )
+        if not analysis['viable']:
             return None
 
-        eta = max(1, int(weather_forecast.get('rain_eta_laps') or 1))
-        stop_lap = min(total_laps, current_lap + eta)
-        target = COMPOUND_WET if rain_probability >= 0.75 else COMPOUND_INTERMEDIATE
+        stop_lap = analysis['stop_lap']
+        target = analysis['target_compound']
         stops = (StrategyStop(lap=stop_lap, compound=target),)
         total_time = self.simulate_race_time(
             current_lap, total_laps, stops, base_lap_time,
@@ -298,7 +299,10 @@ class StrategyEngine:
             current_tyre_age=tyre_age,
             undercut=False,
             overcut=False,
-            notes='Prepare for rain by switching to wet-weather tires.',
+            notes=(
+                f"Rain {analysis['rain_probability']:.0%} in ~"
+                f"{analysis['eta_laps']} laps; switch to {target} on L{stop_lap}."
+            ),
         )
 
     def _build_option(
@@ -509,6 +513,52 @@ class StrategyEngine:
         if value > 1.0:
             value /= 100.0
         return min(max(value, 0.0), 1.0)
+
+    def _analyze_wet_switch(
+        self, current_lap, total_laps, current_compound, weather_forecast,
+    ):
+        rain_probability = self._rain_probability(weather_forecast)
+        eta_laps = self._rain_eta_laps(weather_forecast)
+        remaining_laps = total_laps - current_lap
+        if remaining_laps < 2:
+            return {'viable': False}
+        if rain_probability < 0.5:
+            return {'viable': False}
+        if eta_laps > remaining_laps:
+            return {'viable': False}
+
+        target_compound = self._wet_target_compound(
+            weather_forecast, rain_probability,
+        )
+        if current_compound == target_compound:
+            return {'viable': False}
+
+        stop_lap = min(total_laps - 1, current_lap + max(1, eta_laps))
+        if stop_lap <= current_lap:
+            return {'viable': False}
+        return {
+            'viable': True,
+            'rain_probability': rain_probability,
+            'eta_laps': eta_laps,
+            'target_compound': target_compound,
+            'stop_lap': stop_lap,
+        }
+
+    def _wet_target_compound(self, weather_forecast, rain_probability):
+        heavy_rain = bool(weather_forecast.get('heavy_rain'))
+        rain_intensity = float(weather_forecast.get('rain_intensity') or 0.0)
+        if heavy_rain or rain_intensity >= 0.7 or rain_probability >= 0.75:
+            return COMPOUND_WET
+        return COMPOUND_INTERMEDIATE
+
+    def _rain_eta_laps(self, weather_forecast):
+        eta_raw = weather_forecast.get('rain_eta_laps')
+        if eta_raw in (None, ''):
+            return 1
+        try:
+            return max(1, int(eta_raw))
+        except (TypeError, ValueError):
+            return 1
 
     def _analyze_undercut_gap(
         self, current_compound, tyre_age, base_lap_time, gap_ahead, gap_behind,
