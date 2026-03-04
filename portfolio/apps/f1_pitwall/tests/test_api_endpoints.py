@@ -13,6 +13,7 @@ from f1_pitwall.models import (
     LapData,
     Session,
     TelemetrySnapshot,
+    WeatherData,
 )
 
 User = get_user_model()
@@ -89,6 +90,22 @@ def create_lap(session, driver, lap_number, **overrides):
     }
     defaults.update(overrides)
     return LapData.objects.create(**defaults)
+
+
+def create_weather(session, timestamp, **overrides):
+    defaults = {
+        'session': session,
+        'timestamp': timestamp,
+        'air_temperature': 29.0,
+        'track_temperature': 35.0,
+        'humidity': 60.0,
+        'wind_speed': 3.0,
+        'wind_direction': 120,
+        'rainfall': False,
+        'pressure': 1012.0,
+    }
+    defaults.update(overrides)
+    return WeatherData.objects.create(**defaults)
 
 
 class F1RegisterViewTest(TestCase):
@@ -761,3 +778,125 @@ class StrategyCalculateViewTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('current_lap', res.data)
+
+
+class WeatherTimelineViewTest(TestCase):
+    """Tests for GET /f1/api/weather/<session_key>/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='weather_timeline@example.com')
+        self.session = create_session(session_key=9600)
+        create_weather(self.session, '2024-03-02T15:00:00Z', humidity=55.0)
+        create_weather(self.session, '2024-03-02T15:05:00Z', humidity=62.0)
+        self.url = reverse(
+            'f1_pitwall:weather-timeline',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    @patch('f1_pitwall.views.weather.WeatherService.get_weather_history')
+    def test_unauthenticated_request_rejected(self, mock_history):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        mock_history.assert_not_called()
+
+    @patch('f1_pitwall.views.weather.WeatherService.get_weather_history')
+    def test_returns_weather_timeline(self, mock_history):
+        mock_history.return_value = WeatherData.objects.filter(session=self.session)
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+        self.assertEqual(res.data[0]['session_key'], self.session.session_key)
+        self.assertIn('humidity', res.data[0])
+
+    @patch('f1_pitwall.views.weather.WeatherService.get_weather_history')
+    def test_nonexistent_session_returns_404(self, mock_history):
+        url = reverse(
+            'f1_pitwall:weather-timeline',
+            kwargs={'session_key': 99999},
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        mock_history.assert_not_called()
+
+
+class WeatherCurrentViewTest(TestCase):
+    """Tests for GET /f1/api/weather/<session_key>/current/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='weather_current@example.com')
+        self.session = create_session(session_key=9601)
+        self.current = create_weather(
+            self.session,
+            '2024-03-02T15:10:00Z',
+            humidity=70.0,
+        )
+        self.url = reverse(
+            'f1_pitwall:weather-current',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    @patch('f1_pitwall.views.weather.WeatherService.get_current_weather')
+    def test_returns_current_weather(self, mock_current):
+        mock_current.return_value = self.current
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['session_key'], self.session.session_key)
+        self.assertEqual(res.data['humidity'], 70.0)
+
+    @patch('f1_pitwall.views.weather.WeatherService.get_current_weather')
+    def test_returns_detail_when_no_current_weather(self, mock_current):
+        mock_current.return_value = None
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('detail', res.data)
+
+
+class WeatherForecastViewTest(TestCase):
+    """Tests for GET /f1/api/weather/<session_key>/forecast/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='weather_forecast@example.com')
+        self.session = create_session(session_key=9602)
+        self.url = reverse(
+            'f1_pitwall:weather-forecast',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    @patch('f1_pitwall.views.weather.WeatherService.calculate_rain_forecast')
+    def test_returns_forecast_payload(self, mock_forecast):
+        mock_forecast.return_value = {
+            'rain_probability': 0.65,
+            'rain_eta_laps': 6,
+            'heavy_rain': False,
+            'rain_intensity': 0.58,
+        }
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['rain_probability'], 0.65)
+        self.assertEqual(res.data['rain_eta_laps'], 6)
+        self.assertEqual(res.data['heavy_rain'], False)
+        self.assertEqual(res.data['rain_intensity'], 0.58)
+
+    @patch('f1_pitwall.views.weather.WeatherService.calculate_rain_forecast')
+    def test_nonexistent_session_returns_404(self, mock_forecast):
+        url = reverse(
+            'f1_pitwall:weather-forecast',
+            kwargs={'session_key': 99999},
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get(url)
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        mock_forecast.assert_not_called()

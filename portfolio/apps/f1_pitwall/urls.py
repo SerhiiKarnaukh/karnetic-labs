@@ -12,6 +12,11 @@ from f1_pitwall.views.session import (
 )
 from f1_pitwall.views.strategy import StrategyCalculateView
 from f1_pitwall.views.telemetry import TelemetryLatestView, TelemetryListView
+from f1_pitwall.views.weather import (
+    WeatherCurrentView,
+    WeatherForecastView,
+    WeatherTimelineView,
+)
 
 app_name = 'f1_pitwall'
 
@@ -86,5 +91,22 @@ urlpatterns = [
         'api/strategy/<int:session_key>/calculate/',
         StrategyCalculateView.as_view(),
         name='strategy-calculate',
+    ),
+
+    # Weather
+    path(
+        'api/weather/<int:session_key>/',
+        WeatherTimelineView.as_view(),
+        name='weather-timeline',
+    ),
+    path(
+        'api/weather/<int:session_key>/current/',
+        WeatherCurrentView.as_view(),
+        name='weather-current',
+    ),
+    path(
+        'api/weather/<int:session_key>/forecast/',
+        WeatherForecastView.as_view(),
+        name='weather-forecast',
     ),
 ]
