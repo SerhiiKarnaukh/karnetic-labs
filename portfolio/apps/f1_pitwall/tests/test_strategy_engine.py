@@ -60,6 +60,48 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         names = [option.name for option in options]
         self.assertIn('one_stop', names)
 
+    def test_strategy_type_generation_matrix(self):
+        """Parameterized checks for all strategy types."""
+        cases = [
+            (
+                'one_stop',
+                self._base_input(current_lap=10, gap_ahead=30.0),
+                'one_stop',
+                True,
+            ),
+            (
+                'two_stop',
+                self._base_input(current_lap=20, gap_ahead=30.0),
+                'two_stop',
+                True,
+            ),
+            (
+                'undercut',
+                self._base_input(
+                    current_lap=20,
+                    current_compound=COMPOUND_SOFT,
+                    tyre_age=20,
+                    gap_ahead=10.0,
+                    gap_behind=12.0,
+                ),
+                'undercut',
+                True,
+            ),
+            (
+                'wet_switch',
+                self._base_input(
+                    weather_forecast={'rain_probability': 0.8, 'rain_eta_laps': 2},
+                ),
+                'wet_switch',
+                True,
+            ),
+        ]
+        for label, payload, strategy_name, expected in cases:
+            with self.subTest(label=label):
+                options = self.engine.calculate_strategies(**payload)
+                names = [option.name for option in options]
+                self.assertEqual(strategy_name in names, expected)
+
     def test_one_stop_note_includes_optimal_window_and_state(self):
         options = self.engine.calculate_strategies(**self._base_input(current_lap=10))
         one_stop = next(option for option in options if option.name == 'one_stop')
@@ -204,6 +246,40 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         wet = next(option for option in options if option.name == 'wet_switch')
         self.assertIn('Rain 80%', wet.notes)
         self.assertIn('in ~2 laps', wet.notes)
+
+    def test_edge_case_matrix(self):
+        """Parameterized edge cases from development plan."""
+        cases = [
+            (
+                'final_lap_no_viable_pit_strategy',
+                self._base_input(
+                    current_lap=57,
+                    total_laps=57,
+                    gap_ahead=100.0,
+                    weather_forecast={'rain_probability': 0.0, 'rain_eta_laps': 99},
+                ),
+                {'one_stop', 'two_stop', 'undercut', 'wet_switch'},
+            ),
+            (
+                'already_on_optimal_wet_tire',
+                self._base_input(
+                    current_compound=COMPOUND_WET,
+                    weather_forecast={'rain_probability': 0.9, 'rain_eta_laps': 2},
+                ),
+                {'wet_switch'},
+            ),
+            (
+                'no_viable_one_stop_before_window',
+                self._base_input(current_lap=11, current_compound=COMPOUND_SOFT),
+                {'one_stop'},
+            ),
+        ]
+        for label, payload, absent in cases:
+            with self.subTest(label=label):
+                options = self.engine.calculate_strategies(**payload)
+                names = set(option.name for option in options)
+                for strategy_name in absent:
+                    self.assertNotIn(strategy_name, names)
 
     def test_skips_one_stop_when_window_opens_in_less_than_two_laps(self):
         options = self.engine.calculate_strategies(

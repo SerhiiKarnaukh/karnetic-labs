@@ -114,6 +114,53 @@ class WeatherServiceForecastTest(TestCase):
         self.assertIn('heavy_rain', forecast)
         self.assertIn('rain_intensity', forecast)
 
+    def test_forecast_accuracy_matrix(self):
+        """Parameterized weather forecast accuracy checks."""
+        strong_signal = make_weather_rows()
+        active_rain = make_weather_rows()
+        active_rain[-1]['rainfall'] = 1
+        active_rain[-1]['humidity'] = 93.0
+        low_signal = [
+            {
+                'date': '2024-03-02T15:00:00+00:00',
+                'air_temperature': 30.0,
+                'track_temperature': 40.0,
+                'humidity': 40.0,
+                'wind_speed': 2.0,
+                'wind_direction': 100,
+                'rainfall': 0,
+                'pressure': 1013.0,
+            },
+            {
+                'date': '2024-03-02T15:05:00+00:00',
+                'air_temperature': 30.0,
+                'track_temperature': 39.5,
+                'humidity': 42.0,
+                'wind_speed': 2.0,
+                'wind_direction': 110,
+                'rainfall': 0,
+                'pressure': 1012.9,
+            },
+        ]
+        cases = [
+            ('strong_signal', strong_signal, 0.5, 1.0, True, True),
+            ('active_rain', active_rain, 1.0, 1.0, True, True),
+            ('low_signal', low_signal, 0.0, 0.49, False, False),
+        ]
+        for label, rows, min_prob, max_prob, expect_heavy, expect_eta in cases:
+            with self.subTest(label=label):
+                WeatherData.objects.filter(session=self.session).delete()
+                self.client.get_weather = AsyncMock(return_value=rows)
+                service = WeatherService(client=self.client)
+                forecast = service.calculate_rain_forecast(self.session.session_key)
+                self.assertGreaterEqual(forecast['rain_probability'], min_prob)
+                self.assertLessEqual(forecast['rain_probability'], max_prob)
+                self.assertEqual(forecast['heavy_rain'], expect_heavy)
+                if expect_eta:
+                    self.assertIsNotNone(forecast['rain_eta_laps'])
+                else:
+                    self.assertIsNone(forecast['rain_eta_laps'])
+
     def test_forecast_probability_increases_with_rising_humidity_and_drop_pressure(self):
         forecast = self.service.calculate_rain_forecast(self.session.session_key)
         self.assertGreaterEqual(forecast['rain_probability'], 0.5)
@@ -169,6 +216,21 @@ class WeatherServiceForecastTest(TestCase):
         self.assertFalse(
             self.service.is_rain_likely(self.session.session_key, within_laps=1),
         )
+
+    def test_is_rain_likely_horizon_matrix(self):
+        cases = [
+            (1, False),
+            (3, False),
+            (5, True),
+            (10, True),
+            (12, True),
+        ]
+        for horizon, expected in cases:
+            with self.subTest(horizon=horizon):
+                result = self.service.is_rain_likely(
+                    self.session.session_key, within_laps=horizon,
+                )
+                self.assertEqual(result, expected)
 
     def test_forecast_defaults_when_no_data(self):
         self.client.get_weather = AsyncMock(return_value=[])
