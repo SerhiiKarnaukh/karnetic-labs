@@ -105,6 +105,30 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         names = [option.name for option in options]
         self.assertIn('undercut', names)
 
+    def test_generates_undercut_when_projected_gain_extends_window(self):
+        options = self.engine.calculate_strategies(**self._base_input(
+            current_lap=20,
+            current_compound=COMPOUND_SOFT,
+            tyre_age=20,
+            gap_ahead=24.0,
+            gap_behind=15.0,
+        ))
+        undercut = next((option for option in options if option.name == 'undercut'), None)
+        self.assertIsNotNone(undercut)
+        self.assertIn('projected gain', undercut.notes)
+        self.assertGreater(undercut.undercut_potential, 0.0)
+
+    def test_does_not_generate_undercut_when_gap_too_large(self):
+        options = self.engine.calculate_strategies(**self._base_input(
+            current_lap=20,
+            current_compound=COMPOUND_SOFT,
+            tyre_age=20,
+            gap_ahead=40.0,
+            gap_behind=15.0,
+        ))
+        names = [option.name for option in options]
+        self.assertNotIn('undercut', names)
+
     def test_generates_wet_switch_for_high_rain_probability(self):
         options = self.engine.calculate_strategies(
             **self._base_input(weather_forecast={'rain_probability': 0.8, 'rain_eta_laps': 2}),
@@ -130,6 +154,22 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
     def test_calculate_undercut_window(self):
         self.assertTrue(self.engine.calculate_undercut_window(10.0))
         self.assertFalse(self.engine.calculate_undercut_window(30.0))
+        self.assertTrue(self.engine.calculate_undercut_window(
+            24.0, projected_gain=3.0,
+        ))
+
+    def test_analyze_undercut_gap_returns_viability_metrics(self):
+        analysis = self.engine._analyze_undercut_gap(
+            current_compound=COMPOUND_SOFT,
+            tyre_age=20,
+            base_lap_time=90.0,
+            gap_ahead=24.0,
+            gap_behind=15.0,
+        )
+        self.assertIn('window', analysis)
+        self.assertIn('projected_gain', analysis)
+        self.assertIn('potential', analysis)
+        self.assertTrue(analysis['viable'])
 
     def test_result_is_sorted_by_total_time(self):
         options = self.engine.calculate_strategies(**self._base_input(gap_ahead=10.0))

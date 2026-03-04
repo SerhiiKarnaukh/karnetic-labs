@@ -87,7 +87,7 @@ class StrategyEngine:
 
         undercut = self._undercut_option(
             current_lap, total_laps, current_compound, tyre_age, base_lap_time,
-            weather_forecast, gap_ahead,
+            weather_forecast, gap_ahead, gap_behind,
         )
         if undercut:
             strategies.append(undercut)
@@ -135,10 +135,12 @@ class StrategyEngine:
             tyre_age += 1
         return total_time
 
-    def calculate_undercut_window(self, gap_ahead, pit_time_loss=None):
-        """Return whether undercut is viable based on current gap ahead."""
+    def calculate_undercut_window(
+        self, gap_ahead, pit_time_loss=None, projected_gain=0.0,
+    ):
+        """Return whether undercut is viable from gap and projected gain."""
         threshold = pit_time_loss if pit_time_loss is not None else self.pit_time_loss
-        return gap_ahead < threshold
+        return gap_ahead <= threshold + max(0.0, projected_gain)
 
     def _one_stop_option(
         self,
@@ -234,8 +236,12 @@ class StrategyEngine:
         base_lap_time,
         weather_forecast,
         gap_ahead,
+        gap_behind,
     ):
-        if not self.calculate_undercut_window(gap_ahead):
+        analysis = self._analyze_undercut_gap(
+            current_compound, tyre_age, base_lap_time, gap_ahead, gap_behind,
+        )
+        if not analysis['viable']:
             return None
 
         compound = COMPOUND_SOFT if current_compound != COMPOUND_SOFT else COMPOUND_MEDIUM
@@ -252,9 +258,13 @@ class StrategyEngine:
             current_compound=current_compound,
             start_lap=current_lap,
             current_tyre_age=tyre_age,
-            undercut=True,
+            undercut=analysis['potential'],
             overcut=False,
-            notes='Pit immediately to attack the car ahead.',
+            notes=(
+                f"Gap ahead {gap_ahead:.1f}s vs undercut window "
+                f"{analysis['window']:.2f}s; projected gain "
+                f"{analysis['projected_gain']:.2f}s."
+            ),
         )
 
     def _wet_switch_option(
@@ -314,7 +324,7 @@ class StrategyEngine:
             pit_stops=pit_stops,
             tire_risk=tire_risk,
             weather_risk=weather_risk,
-            undercut_potential=1.0 if undercut else 0.0,
+            undercut_potential=float(undercut),
             overcut_potential=1.0 if overcut else 0.0,
             notes=notes,
         )
@@ -499,6 +509,36 @@ class StrategyEngine:
         if value > 1.0:
             value /= 100.0
         return min(max(value, 0.0), 1.0)
+
+    def _analyze_undercut_gap(
+        self, current_compound, tyre_age, base_lap_time, gap_ahead, gap_behind,
+    ):
+        pit_compound = (
+            COMPOUND_SOFT if current_compound != COMPOUND_SOFT else COMPOUND_MEDIUM
+        )
+        rival_next = self.predict_lap_time(
+            current_compound, tyre_age + 1, base_lap_time,
+        )
+        our_next = self.predict_lap_time(pit_compound, 0, base_lap_time)
+        lap_gain = max(0.0, rival_next - our_next)
+        projected_gain = round(lap_gain * 3, 3)
+        window = self.pit_time_loss + projected_gain
+        margin = window - gap_ahead
+        rejoin_gap = gap_behind - self.pit_time_loss + projected_gain
+        potential = min(
+            1.0,
+            max(0.0, (margin / max(self.pit_time_loss, 1.0)) + 0.5),
+        )
+        return {
+            'viable': self.calculate_undercut_window(
+                gap_ahead, projected_gain=projected_gain,
+            ),
+            'window': round(window, 3),
+            'margin': round(margin, 3),
+            'projected_gain': projected_gain,
+            'rejoin_gap': round(rejoin_gap, 3),
+            'potential': round(potential, 3),
+        }
 
     def _profile(self, compound):
         profile = self.DEGRADATION_PROFILES.get(compound)
