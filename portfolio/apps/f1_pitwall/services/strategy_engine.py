@@ -1,6 +1,6 @@
 """Pure calculation logic for race strategy modeling."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from f1_pitwall.constants import (
     COMPOUND_HARD,
@@ -42,6 +42,7 @@ class StrategyOption:
     undercut_potential: float
     overcut_potential: float
     notes: str
+    score: float = 0.0
 
 
 class StrategyEngine:
@@ -98,7 +99,7 @@ class StrategyEngine:
         )
         if wet_switch:
             strategies.append(wet_switch)
-        return sorted(strategies, key=lambda s: s.total_time)
+        return self._score_and_sort_strategies(strategies)
 
     def predict_lap_time(self, compound, tyre_age, base_lap_time):
         """Predict one lap time using piecewise degradation with cliff."""
@@ -595,3 +596,41 @@ class StrategyEngine:
         if profile is None:
             raise ValueError(f'Unknown compound: {compound}')
         return profile
+
+    def _score_and_sort_strategies(self, strategies):
+        """Score strategies on time+risk and return best-first ordering."""
+        if not strategies:
+            return []
+
+        totals = [strategy.total_time for strategy in strategies]
+        min_total = min(totals)
+        max_total = max(totals)
+        spread = max_total - min_total
+
+        scored = []
+        for strategy in strategies:
+            normalized_time = self._normalize_total_time(
+                strategy.total_time, min_total, spread,
+            )
+            score = round(
+                (0.7 * normalized_time)
+                + (0.2 * strategy.tire_risk)
+                + (0.1 * strategy.weather_risk),
+                3,
+            )
+            scored.append(replace(strategy, score=score))
+
+        return sorted(
+            scored,
+            key=lambda s: (
+                s.score,
+                s.total_time,
+                s.tire_risk,
+                s.weather_risk,
+            ),
+        )
+
+    def _normalize_total_time(self, total_time, min_total, spread):
+        if spread <= 0:
+            return 0.0
+        return (total_time - min_total) / spread

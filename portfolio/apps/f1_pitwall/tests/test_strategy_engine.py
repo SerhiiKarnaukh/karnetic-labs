@@ -9,7 +9,11 @@ from f1_pitwall.constants import (
     COMPOUND_SOFT,
     COMPOUND_WET,
 )
-from f1_pitwall.services.strategy_engine import StrategyEngine, StrategyStop
+from f1_pitwall.services.strategy_engine import (
+    StrategyEngine,
+    StrategyOption,
+    StrategyStop,
+)
 
 
 class StrategyEnginePredictLapTimeTest(SimpleTestCase):
@@ -246,10 +250,17 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         self.assertEqual(analysis['target_compound'], COMPOUND_WET)
         self.assertEqual(analysis['stop_lap'], 23)
 
-    def test_result_is_sorted_by_total_time(self):
+    def test_result_is_sorted_by_score(self):
         options = self.engine.calculate_strategies(**self._base_input(gap_ahead=10.0))
-        total_times = [option.total_time for option in options]
-        self.assertEqual(total_times, sorted(total_times))
+        scores = [option.score for option in options]
+        self.assertEqual(scores, sorted(scores))
+
+    def test_each_strategy_has_calculated_score(self):
+        options = self.engine.calculate_strategies(**self._base_input(gap_ahead=10.0))
+        self.assertTrue(options)
+        for option in options:
+            self.assertGreaterEqual(option.score, 0.0)
+            self.assertLessEqual(option.score, 1.0)
 
     def test_simulate_race_time_adds_pit_time_loss(self):
         no_stop = self.engine.simulate_race_time(
@@ -350,3 +361,49 @@ class StrategyEngineStrategyGenerationTest(SimpleTestCase):
         self.assertEqual(len(stops), 2)
         self.assertEqual(stops[0].lap, first)
         self.assertEqual(stops[1].lap, second)
+
+    def test_score_and_sort_strategies_uses_time_and_risk(self):
+        options = [
+            StrategyOption(
+                name='low_time_high_risk',
+                total_time=5000.0,
+                pit_stops=(),
+                tire_risk=0.9,
+                weather_risk=0.8,
+                undercut_potential=0.0,
+                overcut_potential=0.0,
+                notes='',
+            ),
+            StrategyOption(
+                name='mid_time_low_risk',
+                total_time=5001.0,
+                pit_stops=(),
+                tire_risk=0.1,
+                weather_risk=0.1,
+                undercut_potential=0.0,
+                overcut_potential=0.0,
+                notes='',
+            ),
+            StrategyOption(
+                name='high_time_low_risk',
+                total_time=5010.0,
+                pit_stops=(),
+                tire_risk=0.0,
+                weather_risk=0.0,
+                undercut_potential=0.0,
+                overcut_potential=0.0,
+                notes='',
+            ),
+        ]
+        ranked = self.engine._score_and_sort_strategies(options)
+        self.assertEqual(ranked[0].name, 'mid_time_low_risk')
+        self.assertEqual(ranked[1].name, 'low_time_high_risk')
+        self.assertEqual(ranked[2].name, 'high_time_low_risk')
+
+    def test_normalize_total_time_zero_when_spread_is_zero(self):
+        normalized = self.engine._normalize_total_time(
+            total_time=5000.0,
+            min_total=5000.0,
+            spread=0.0,
+        )
+        self.assertEqual(normalized, 0.0)
