@@ -10,7 +10,7 @@ from f1_pitwall.views.session import (
     SessionListView,
     SessionLiveView,
 )
-from f1_pitwall.views.strategy import StrategyCalculateView
+from f1_pitwall.views.strategy import StrategyCalculateView, StrategyStintsView
 from f1_pitwall.views.telemetry import TelemetryLatestView, TelemetryListView
 from f1_pitwall.views.weather import (
     WeatherCurrentView,
@@ -91,6 +91,11 @@ urlpatterns = [
         'api/strategy/<int:session_key>/calculate/',
         StrategyCalculateView.as_view(),
         name='strategy-calculate',
+    ),
+    path(
+        'api/strategy/<int:session_key>/stints/',
+        StrategyStintsView.as_view(),
+        name='strategy-stints',
     ),
 
     # Weather

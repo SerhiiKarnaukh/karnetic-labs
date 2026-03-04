@@ -12,6 +12,7 @@ from f1_pitwall.models import (
     F1UserProfile,
     LapData,
     Session,
+    Stint,
     TelemetrySnapshot,
     WeatherData,
 )
@@ -106,6 +107,20 @@ def create_weather(session, timestamp, **overrides):
     }
     defaults.update(overrides)
     return WeatherData.objects.create(**defaults)
+
+
+def create_stint(session, driver, stint_number, **overrides):
+    defaults = {
+        'session': session,
+        'driver': driver,
+        'stint_number': stint_number,
+        'compound': 'SOFT',
+        'tyre_age_at_start': 0,
+        'lap_start': 1,
+        'lap_end': 10,
+    }
+    defaults.update(overrides)
+    return Stint.objects.create(**defaults)
 
 
 class F1RegisterViewTest(TestCase):
@@ -778,6 +793,85 @@ class StrategyCalculateViewTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('current_lap', res.data)
+
+
+class StrategyStintsViewTest(TestCase):
+    """Tests for GET /f1/api/strategy/<session_key>/stints/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='strategy_stints@example.com')
+        self.session = create_session(session_key=9510)
+        self.other_session = create_session(session_key=9511)
+        self.driver1 = create_driver(driver_number=1)
+        self.driver44 = create_driver(
+            driver_number=44,
+            full_name='Lewis HAMILTON',
+            name_acronym='HAM',
+            team_name='Mercedes',
+            team_colour='#27F4D2',
+        )
+        create_stint(
+            self.session, self.driver44, stint_number=2,
+            compound='MEDIUM', lap_start=21, lap_end=35, tyre_age_at_start=0,
+        )
+        create_stint(
+            self.session, self.driver1, stint_number=1,
+            compound='SOFT', lap_start=1, lap_end=20, tyre_age_at_start=0,
+        )
+        create_stint(
+            self.other_session, self.driver1, stint_number=1,
+            compound='HARD', lap_start=1, lap_end=18, tyre_age_at_start=2,
+        )
+        self.url = reverse(
+            'f1_pitwall:strategy-stints',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_nonexistent_session_returns_404(self):
+        url = reverse(
+            'f1_pitwall:strategy-stints',
+            kwargs={'session_key': 99999},
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_returns_stints_for_session_only(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+        session_keys = {row['session_key'] for row in res.data}
+        self.assertEqual(session_keys, {self.session.session_key})
+
+    def test_returns_ordered_by_driver_then_stint_number(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data[0]['driver_number'], 1)
+        self.assertEqual(res.data[0]['stint_number'], 1)
+        self.assertEqual(res.data[1]['driver_number'], 44)
+        self.assertEqual(res.data[1]['stint_number'], 2)
+
+    def test_payload_contains_expected_stint_fields(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        row = res.data[0]
+        self.assertIn('session_key', row)
+        self.assertIn('driver_number', row)
+        self.assertIn('stint_number', row)
+        self.assertIn('compound', row)
+        self.assertIn('tyre_age_at_start', row)
+        self.assertIn('lap_start', row)
+        self.assertIn('lap_end', row)
 
 
 class WeatherTimelineViewTest(TestCase):

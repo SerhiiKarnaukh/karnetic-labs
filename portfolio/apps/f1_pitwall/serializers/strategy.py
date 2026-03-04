@@ -3,6 +3,7 @@
 from rest_framework import serializers
 
 from f1_pitwall.constants import COMPOUND_CHOICES
+from f1_pitwall.models import Stint
 
 
 class StrategyCalculateRequestSerializer(serializers.Serializer):
@@ -46,3 +47,23 @@ class StrategyOptionSerializer(serializers.Serializer):
     overcut_potential = serializers.FloatField()
     notes = serializers.CharField()
     score = serializers.FloatField()
+
+
+class StintSerializer(serializers.ModelSerializer):
+    """Serialize stint data for strategy panel consumption."""
+
+    session_key = serializers.IntegerField(source='session.session_key')
+    driver_number = serializers.IntegerField(source='driver.driver_number')
+
+    class Meta:
+        model = Stint
+        fields = (
+            'id',
+            'session_key',
+            'driver_number',
+            'stint_number',
+            'compound',
+            'tyre_age_at_start',
+            'lap_start',
+            'lap_end',
+        )
