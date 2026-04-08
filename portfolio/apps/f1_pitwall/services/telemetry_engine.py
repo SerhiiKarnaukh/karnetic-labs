@@ -175,6 +175,8 @@ class TelemetryEngine:
                 brake=snap['brake'],
                 gear=snap['gear'],
                 drs=snap['drs'],
+                data_source='openf1_car_data',
+                is_fallback=False,
             ))
         return objects
 
@@ -217,6 +219,8 @@ class TelemetryEngine:
                 'brake': snap['brake'],
                 'gear': snap['gear'],
                 'drs': snap['drs'],
+                'data_source': 'openf1_car_data',
+                'is_fallback': False,
             })
         return payload
 

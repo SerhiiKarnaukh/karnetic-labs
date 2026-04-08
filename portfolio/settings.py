@@ -414,3 +414,8 @@ STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
 # OpenAI API
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 ALPHA_VANTAGE_API_KEY = os.environ.get("ALPHA_VANTAGE_API_KEY")
+
+# F1 Pit Wall
+F1_AUTO_HYDRATE_READ = os.environ.get(
+    "F1_AUTO_HYDRATE_READ", "False",
+) == "True"

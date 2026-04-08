@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from f1_pitwall.models import Session, TelemetrySnapshot
 from f1_pitwall.serializers.telemetry import TelemetrySnapshotSerializer
+from f1_pitwall.services.session_data_hydrator import SessionDataHydrator
 
 
 class TelemetryListView(ListAPIView):
@@ -19,9 +20,10 @@ class TelemetryListView(ListAPIView):
     def get_queryset(self):
         session_key = self.kwargs['session_key']
         session = get_object_or_404(Session, session_key=session_key)
+        driver = self.request.query_params.get('driver')
+        SessionDataHydrator().ensure_latest_snapshots(session, driver)
         queryset = TelemetrySnapshot.objects.filter(session=session)
 
-        driver = self.request.query_params.get('driver')
         if driver:
             queryset = queryset.filter(driver__driver_number=driver)
 
@@ -45,6 +47,7 @@ class TelemetryLatestView(ListAPIView):
     def get_queryset(self):
         session_key = self.kwargs['session_key']
         session = get_object_or_404(Session, session_key=session_key)
+        SessionDataHydrator().ensure_latest_snapshots(session)
         base = TelemetrySnapshot.objects.filter(session=session)
 
         latest_by_driver = base.filter(

@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from f1_pitwall.models import LapData, Session
 from f1_pitwall.serializers.laps import LapDataSerializer
+from f1_pitwall.services.session_data_hydrator import SessionDataHydrator
 
 
 class LapDataListView(ListAPIView):
@@ -17,9 +18,10 @@ class LapDataListView(ListAPIView):
 
     def get_queryset(self):
         session = self._get_session()
+        driver_number = self.request.query_params.get('driver')
+        SessionDataHydrator().ensure_laps(session, driver_number)
         queryset = LapData.objects.filter(session=session)
 
-        driver_number = self.request.query_params.get('driver')
         if driver_number:
             queryset = queryset.filter(driver__driver_number=driver_number)
 
@@ -37,6 +39,7 @@ class FastestLapsView(ListAPIView):
 
     def get_queryset(self):
         session = self._get_session()
+        SessionDataHydrator().ensure_laps(session)
         base = LapData.objects.filter(
             session=session,
             lap_duration__isnull=False,

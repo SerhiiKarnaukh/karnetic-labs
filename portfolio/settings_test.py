@@ -14,3 +14,5 @@ PASSWORD_HASHERS = [
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
 AUTH_PASSWORD_VALIDATORS = []
+
+F1_AUTO_HYDRATE_READ = False

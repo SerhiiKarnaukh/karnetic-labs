@@ -11,6 +11,7 @@ from f1_pitwall.models import (
     Driver,
     F1UserProfile,
     LapData,
+    RaceControlMessage,
     Session,
     Stint,
     TelemetrySnapshot,
@@ -121,6 +122,21 @@ def create_stint(session, driver, stint_number, **overrides):
     }
     defaults.update(overrides)
     return Stint.objects.create(**defaults)
+
+
+def create_race_control(session, timestamp, **overrides):
+    defaults = {
+        'session': session,
+        'timestamp': timestamp,
+        'category': 'Flag',
+        'message': 'Green flag',
+        'flag': 'GREEN',
+        'driver_number': None,
+        'lap_number': None,
+        'sector': None,
+    }
+    defaults.update(overrides)
+    return RaceControlMessage.objects.create(**defaults)
 
 
 class F1RegisterViewTest(TestCase):
@@ -562,6 +578,10 @@ class TelemetryLatestViewTest(TestCase):
         self.assertEqual(len(res.data), 2)
         self.assertEqual(res.data[0]['driver_number'], 1)
         self.assertEqual(res.data[0]['speed'], 305)
+        self.assertIn('data_source', res.data[0])
+        self.assertIn('is_fallback', res.data[0])
+        self.assertEqual(res.data[0]['data_source'], 'openf1_car_data')
+        self.assertFalse(res.data[0]['is_fallback'])
         self.assertEqual(res.data[1]['driver_number'], 44)
         self.assertEqual(res.data[1]['speed'], 306)
 
@@ -994,3 +1014,89 @@ class WeatherForecastViewTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         mock_forecast.assert_not_called()
+
+
+class RaceControlListViewTest(TestCase):
+    """Tests for GET /f1/api/race-control/<session_key>/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='rc_list@example.com')
+        self.session = create_session(session_key=9700)
+        self.url = reverse(
+            'f1_pitwall:race-control-list',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @patch('f1_pitwall.views.race_control.RaceControlService.get_messages')
+    def test_returns_message_list(self, mock_get_messages):
+        create_race_control(
+            self.session, '2024-03-02T15:00:00Z',
+            flag='YELLOW', message='Yellow flag in sector 2',
+        )
+        mock_get_messages.return_value = RaceControlMessage.objects.filter(
+            session=self.session,
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['session_key'], self.session.session_key)
+        self.assertEqual(res.data[0]['flag'], 'YELLOW')
+
+    @patch('f1_pitwall.views.race_control.RaceControlService.get_messages')
+    def test_nonexistent_session_returns_404(self, mock_get_messages):
+        url = reverse(
+            'f1_pitwall:race-control-list',
+            kwargs={'session_key': 99999},
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        mock_get_messages.assert_not_called()
+
+
+class RaceControlFlagsViewTest(TestCase):
+    """Tests for GET /f1/api/race-control/<session_key>/flags/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_test_user(email='rc_flags@example.com')
+        self.session = create_session(session_key=9701)
+        self.url = reverse(
+            'f1_pitwall:race-control-flags',
+            kwargs={'session_key': self.session.session_key},
+        )
+
+    def test_unauthenticated_request_rejected(self):
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @patch('f1_pitwall.views.race_control.RaceControlService.is_safety_car_active')
+    @patch('f1_pitwall.views.race_control.RaceControlService.get_latest_flag')
+    def test_returns_latest_flag_payload(self, mock_get_latest_flag, mock_sc):
+        mock_get_latest_flag.return_value = 'YELLOW'
+        mock_sc.return_value = True
+        self.client.force_authenticate(self.user)
+        res = self.client.get(self.url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['session_key'], self.session.session_key)
+        self.assertEqual(res.data['latest_flag'], 'YELLOW')
+        self.assertTrue(res.data['safety_car_active'])
+
+    @patch('f1_pitwall.views.race_control.RaceControlService.get_latest_flag')
+    def test_nonexistent_session_returns_404(self, mock_get_latest_flag):
+        url = reverse(
+            'f1_pitwall:race-control-flags',
+            kwargs={'session_key': 99999},
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        mock_get_latest_flag.assert_not_called()

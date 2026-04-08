@@ -8,6 +8,7 @@ services:
     volumes:
       - static-data:/vol/web
     environment:
+      - F1_AUTO_HYDRATE_READ=${F1_AUTO_HYDRATE_READ}
       - SQL_ENGINE=${SQL_ENGINE}
       - SQL_HOST=db
       - SQL_DATABASE=${SQL_DATABASE}
@@ -85,6 +86,7 @@ services:
     volumes:
       - static-data:/vol/web
     environment:
+      - F1_AUTO_HYDRATE_READ=${F1_AUTO_HYDRATE_READ}
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=False
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
@@ -117,6 +119,7 @@ services:
     volumes:
       - static-data:/vol/web
     environment:
+      - F1_AUTO_HYDRATE_READ=${F1_AUTO_HYDRATE_READ}
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=False
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}

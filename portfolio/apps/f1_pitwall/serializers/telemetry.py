@@ -24,4 +24,6 @@ class TelemetrySnapshotSerializer(serializers.ModelSerializer):
             'brake',
             'gear',
             'drs',
+            'data_source',
+            'is_fallback',
         )

@@ -97,6 +97,47 @@ class WeatherServiceHistoryTest(TestCase):
         self.assertEqual(queryset.count(), 1)
         self.assertEqual(queryset.first().humidity, 0.0)
 
+    def test_sync_consolidates_duplicate_timestamp_rows(self):
+        WeatherData.objects.create(
+            session=self.session,
+            timestamp='2024-03-02T15:00:00+00:00',
+            air_temperature=20.0,
+            track_temperature=30.0,
+            humidity=40.0,
+            wind_speed=1.0,
+            wind_direction=90,
+            rainfall=False,
+            pressure=1015.0,
+        )
+        WeatherData.objects.create(
+            session=self.session,
+            timestamp='2024-03-02T15:00:00+00:00',
+            air_temperature=21.0,
+            track_temperature=31.0,
+            humidity=41.0,
+            wind_speed=1.1,
+            wind_direction=91,
+            rainfall=False,
+            pressure=1014.5,
+        )
+
+        self.client.get_weather = AsyncMock(return_value=[{
+            'date': '2024-03-02T15:00:00+00:00',
+            'air_temperature': 29.0,
+            'track_temperature': 36.0,
+            'humidity': 55.0,
+            'wind_speed': 2.5,
+            'wind_direction': 100,
+            'rainfall': 0,
+            'pressure': 1014.0,
+        }])
+        service = WeatherService(client=self.client)
+        queryset = service.get_weather_history(self.session.session_key)
+
+        self.assertEqual(queryset.filter(timestamp='2024-03-02T15:00:00+00:00').count(), 1)
+        row = queryset.get(timestamp='2024-03-02T15:00:00+00:00')
+        self.assertEqual(row.humidity, 55.0)
+
 
 class WeatherServiceForecastTest(TestCase):
     """Rain probability, ETA, and likely-rain decisions."""

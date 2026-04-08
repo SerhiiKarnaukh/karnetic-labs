@@ -5,6 +5,7 @@ from django.urls import path
 from f1_pitwall.views.auth import F1MeView, F1RegisterView
 from f1_pitwall.views.drivers import DriverDetailView, DriverListView
 from f1_pitwall.views.laps import FastestLapsView, LapDataListView
+from f1_pitwall.views.race_control import RaceControlFlagsView, RaceControlListView
 from f1_pitwall.views.session import (
     SessionDetailView,
     SessionListView,
@@ -113,5 +114,17 @@ urlpatterns = [
         'api/weather/<int:session_key>/forecast/',
         WeatherForecastView.as_view(),
         name='weather-forecast',
+    ),
+
+    # Race control
+    path(
+        'api/race-control/<int:session_key>/',
+        RaceControlListView.as_view(),
+        name='race-control-list',
+    ),
+    path(
+        'api/race-control/<int:session_key>/flags/',
+        RaceControlFlagsView.as_view(),
+        name='race-control-flags',
     ),
 ]

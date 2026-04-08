@@ -59,6 +59,8 @@ def _build_row(session, drivers, snap):
         brake=numeric['brake'],
         gear=numeric['gear'],
         drs=numeric['drs'],
+        data_source=snap.get('data_source') or 'openf1_car_data',
+        is_fallback=bool(snap.get('is_fallback')),
     )
 
 

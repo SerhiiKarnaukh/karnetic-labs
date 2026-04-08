@@ -96,11 +96,20 @@ class WeatherService:
             'rainfall': self._to_bool(raw.get('rainfall')),
             'pressure': self._to_nullable_float(raw.get('pressure')),
         }
-        WeatherData.objects.update_or_create(
-            session=session,
-            timestamp=timestamp,
-            defaults=defaults,
-        )
+        queryset = WeatherData.objects.filter(session=session, timestamp=timestamp)
+        first = queryset.first()
+        if first is None:
+            WeatherData.objects.create(
+                session=session,
+                timestamp=timestamp,
+                **defaults,
+            )
+            return
+
+        queryset.exclude(pk=first.pk).delete()
+        for field, value in defaults.items():
+            setattr(first, field, value)
+        first.save(update_fields=list(defaults.keys()))
 
     def _recent_weather(self, session_key):
         self.get_weather_history(session_key)

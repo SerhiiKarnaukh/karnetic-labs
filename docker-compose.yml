@@ -20,6 +20,7 @@ services:
       - ./data/web:/vol/web
     environment:
       - APP_LOCAL_SERVER=${APP_LOCAL_SERVER}
+      - F1_AUTO_HYDRATE_READ=${F1_AUTO_HYDRATE_READ}
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=True
       - SQL_ENGINE=${SQL_ENGINE}
@@ -80,6 +81,7 @@ services:
       - .:/app
       - ./data/web:/vol/web
     environment:
+      - F1_AUTO_HYDRATE_READ=${F1_AUTO_HYDRATE_READ}
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=True
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
@@ -110,6 +112,7 @@ services:
     volumes:
       - .:/app
     environment:
+      - F1_AUTO_HYDRATE_READ=${F1_AUTO_HYDRATE_READ}
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=True
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}

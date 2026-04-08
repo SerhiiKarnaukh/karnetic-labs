@@ -28,6 +28,12 @@ class TelemetrySnapshot(models.Model):
     brake = models.IntegerField(help_text="0-100 percentage")
     gear = models.IntegerField(help_text="0 for neutral, 1-8")
     drs = models.IntegerField(help_text="DRS status code from OpenF1")
+    data_source = models.CharField(
+        max_length=32,
+        default='openf1_car_data',
+        help_text='Source marker: openf1_car_data or fallback_lap_speed_trap',
+    )
+    is_fallback = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
