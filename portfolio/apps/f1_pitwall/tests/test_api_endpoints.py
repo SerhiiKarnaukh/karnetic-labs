@@ -164,7 +164,11 @@ class F1RegisterViewTest(TestCase):
         self.assertEqual(profile.role, F1UserProfile.Role.VIEWER)
         mock_send_email.assert_called_once()
 
-    def test_register_rejects_duplicate_email(self):
+    @patch('f1_pitwall.views.auth.send_activation_email')
+    def test_duplicate_email_creates_f1_profile_when_user_has_none(
+            self, mock_send_email,
+    ):
+        """Existing Account without F1UserProfile gets a profile on duplicate-email register."""
         create_test_user(email='duplicate@example.com')
         payload = {
             'email': 'duplicate@example.com',
@@ -176,11 +180,29 @@ class F1RegisterViewTest(TestCase):
 
         res = self.client.post(self.url, payload)
 
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data.get('detail'), 'f1_profile_created')
         self.assertEqual(
             User.objects.filter(email='duplicate@example.com').count(), 1,
         )
-        self.assertEqual(F1UserProfile.objects.count(), 0)
+        self.assertEqual(F1UserProfile.objects.count(), 1)
+        mock_send_email.assert_not_called()
+
+    def test_register_rejects_duplicate_email_when_f1_profile_exists(self):
+        user = create_test_user(email='dupf1@example.com')
+        F1UserProfile.objects.create(user=user)
+        payload = {
+            'email': 'dupf1@example.com',
+            'username': 'other',
+            'password': 'f1strongpass123',
+            'first_name': 'X',
+            'last_name': 'Y',
+        }
+
+        res = self.client.post(self.url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(F1UserProfile.objects.count(), 1)
 
 
 class F1MeViewTest(TestCase):
@@ -205,15 +227,18 @@ class F1MeViewTest(TestCase):
         self.assertEqual(res.data['email'], 'f1me@example.com')
         self.assertEqual(res.data['role'], F1UserProfile.Role.ENGINEER)
 
-    def test_creates_viewer_profile_if_missing(self):
-        user = create_test_user(email='autocreate@example.com')
+    def test_missing_f1_profile_returns_404(self):
+        user = create_test_user(email='nof1@example.com')
 
         self.client.force_authenticate(user)
         res = self.client.get(self.url)
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data['role'], F1UserProfile.Role.VIEWER)
-        self.assertTrue(F1UserProfile.objects.filter(user=user).exists())
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            res.data.get('message'),
+            'Profile does not exist for this user',
+        )
+        self.assertFalse(F1UserProfile.objects.filter(user=user).exists())
 
 
 class SessionListViewTest(TestCase):
