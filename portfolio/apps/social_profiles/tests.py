@@ -1,6 +1,9 @@
+import os
+import tempfile
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -14,6 +17,9 @@ def _avatar_file():
     return SimpleUploadedFile('a.gif', b'GIF89a', content_type='image/gif')
 
 
+@override_settings(
+    MEDIA_ROOT=os.path.join(tempfile.gettempdir(), 'test_social_profiles_media'),
+)
 class SocialTokenObtainPairViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
