@@ -1,5 +1,7 @@
 """Auth endpoints for F1 Pit Wall user onboarding."""
 
+from django.contrib.auth import authenticate
+
 from accounts.models import Account
 from accounts.serializers import ProfileCreateSerializer
 from accounts.utils import send_activation_email
@@ -7,6 +9,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from f1_pitwall.models import F1UserProfile
 
@@ -56,6 +59,38 @@ class F1RegisterView(generics.CreateAPIView):
             user=user,
             role=F1UserProfile.Role.VIEWER,
         )
+
+
+class F1TokenObtainPairView(TokenObtainPairView):
+    """JWT login for F1: Account must have an F1UserProfile row."""
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            user = authenticate(
+                email=request.data.get('email'),
+                password=request.data.get('password'),
+            )
+            if user is not None:
+                try:
+                    F1UserProfile.objects.get(user=user)
+                except F1UserProfile.DoesNotExist:
+                    return Response(
+                        {'error': 'User profile does not exist.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                return Response(
+                    {'error': 'Invalid login credentials.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response(
+                {'error': f'Authentication failed: {exc}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class F1MeView(APIView):

@@ -5,6 +5,11 @@ from . import api
 app_name = 'social_profiles'
 
 urlpatterns = [
+    path(
+        'api/v1/token/',
+        api.SocialTokenObtainPairView.as_view(),
+        name='social-token-obtain-pair',
+    ),
     path('register/', api.SocialProfileCreateView.as_view(), name='user-register'),
     path('editprofile/', api.editprofile, name='editprofile'),
     path('editpassword/', api.editpassword, name='editpassword'),

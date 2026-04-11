@@ -205,6 +205,44 @@ class F1RegisterViewTest(TestCase):
         self.assertEqual(F1UserProfile.objects.count(), 1)
 
 
+class F1TokenObtainPairViewTest(TestCase):
+    """Tests for POST /f1/api/v1/token/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse('f1_pitwall:token-obtain-pair')
+
+    def test_no_f1_profile_returns_400(self):
+        user = create_test_user(email='notf1@example.com')
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+
+        res = self.client.post(
+            self.url,
+            {'email': 'notf1@example.com', 'password': 'testpass123'},
+            format='json',
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.data.get('error'), 'User profile does not exist.')
+
+    def test_with_f1_profile_returns_tokens(self):
+        user = create_test_user(email='hastoken@example.com')
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+        F1UserProfile.objects.create(user=user)
+
+        res = self.client.post(
+            self.url,
+            {'email': 'hastoken@example.com', 'password': 'testpass123'},
+            format='json',
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('access', res.data)
+        self.assertIn('refresh', res.data)
+
+
 class F1MeViewTest(TestCase):
     """Tests for GET /f1/api/me/."""
 

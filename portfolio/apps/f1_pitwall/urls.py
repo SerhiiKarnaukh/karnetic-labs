@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from f1_pitwall.views.auth import F1MeView, F1RegisterView
+from f1_pitwall.views.auth import F1MeView, F1RegisterView, F1TokenObtainPairView
 from f1_pitwall.views.drivers import DriverDetailView, DriverListView
 from f1_pitwall.views.laps import FastestLapsView, LapDataListView
 from f1_pitwall.views.race_control import RaceControlFlagsView, RaceControlListView
@@ -32,6 +32,11 @@ urlpatterns = [
         'api/me/',
         F1MeView.as_view(),
         name='me',
+    ),
+    path(
+        'api/v1/token/',
+        F1TokenObtainPairView.as_view(),
+        name='token-obtain-pair',
     ),
 
     # Sessions
