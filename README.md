@@ -10,6 +10,7 @@
 
 - [Overview](#overview)
 - [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
 - [Project Structure](#project-structure)
 - [Django Apps](#django-apps)
   - [Core](#core)
@@ -71,6 +72,82 @@ The application is containerized with Docker, uses PostgreSQL as the database, R
 | CI/CD | GitHub Actions |
 | Linting | Flake8 7.3.0, djLint 1.36.4 |
 | Testing | Django TestCase, Coverage 7.13.2 |
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+  subgraph clients [Clients]
+    Browser[Browser]
+    Vue[Vue.js apps Firebase]
+  end
+
+  subgraph proxy_layer [Production edge]
+    Nginx["Nginx :80 :443"]
+    Certbot[Certbot TLS]
+    Certbot -.-> Nginx
+  end
+
+  subgraph app [Django portfolio]
+    Django["Django + DRF Gunicorn or Uvicorn"]
+    ASGI[ASGI WebSockets]
+    Django --- ASGI
+  end
+
+  subgraph data [Data and async]
+    PG[(PostgreSQL 17)]
+    Redis[(Redis)]
+    CeleryW[Celery worker]
+    CeleryB[Celery beat]
+    Django --> PG
+    Django --> Redis
+    ASGI --> Redis
+    CeleryW --> Redis
+    CeleryW --> PG
+    CeleryB --> Redis
+  end
+
+  subgraph external [External services]
+    OpenAI[OpenAI API]
+    Stripe[Stripe]
+    PayPal[PayPal IPN]
+    AlphaV[Alpha Vantage]
+    Django --> OpenAI
+    Django --> Stripe
+    Django --> PayPal
+    Django --> AlphaV
+  end
+
+  Browser --> Nginx
+  Vue --> Nginx
+  Nginx --> Django
+  Nginx --> ASGI
+
+  subgraph static [Static and media]
+    StaticVol["/vol/web/static"]
+    MediaVol["/vol/web/media"]
+    Django --> StaticVol
+    Django --> MediaVol
+    Nginx --> StaticVol
+  end
+```
+
+| Layer | Role |
+|---|---|
+| **Clients** | Server-rendered pages (Taberna, Core, Donation) and REST consumers; separate **Vue.js** clients for Social Network and AI Lab. |
+| **Edge** | **Nginx** terminates TLS (Let's Encrypt), serves static files, proxies HTTP to the app and upgrades **WebSocket** connections for chat and notifications. |
+| **Application** | **`portfolio/`** Django project: HTTP views, **DRF** APIs, **Channels** consumers on **ASGI** (Uvicorn) for real-time features. |
+| **Data** | **PostgreSQL** for relational data; **Redis** as channel layer, cache, and **Celery** broker; workers run scheduled and background tasks. |
+| **External** | **Stripe** / **PayPal** for payments; **OpenAI** for AI Lab; **Alpha Vantage** for optional stock tool in chat. |
+| **Static / media** | Collected static assets and user uploads under **`/vol/web/`** in Docker; Nginx can serve static directly in production. |
+
+**Request paths (conceptual)**
+
+- **HTTP / REST** -- Browser or SPA → Nginx (prod) → Django / DRF (`/api/...`, `/taberna-*`, `/ai-lab/`, etc.).
+- **WebSockets** -- Client → Nginx → ASGI → **Channels** + Redis groups (`/ws/...`).
+- **PayPal IPN** -- PayPal → `POST /paypal/` → Django signals (e.g. Taberna orders, Donation).
 
 ---
 
