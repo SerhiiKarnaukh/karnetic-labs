@@ -54,24 +54,26 @@ The application is containerized with Docker, uses PostgreSQL as the database, R
 
 | Layer | Technology |
 |---|---|
-| Backend | Django 6.0.1, Django REST Framework 3.16.1 |
+| Runtime | Python 3.12 (Alpine in `Dockerfile`) |
+| Backend | Django 6.0.3, Django REST Framework 3.17.1 |
 | Authentication | JWT (SimpleJWT 5.5.1), Djoser 2.3.3 |
-| Database | PostgreSQL 17 |
-| Cache / Broker | Redis 7.4.2 |
-| Task Queue | Celery 5.6.2, Celery Beat |
-| WebSockets | Django Channels 4.3.2, Channels-Redis |
-| Payments | Stripe 14.3.0, django-paypal 2.1 |
-| AI | OpenAI 2.16.0 |
-| Rich Text | django-ckeditor-5 |
-| Frontend Build | Webpack, SCSS, Bootstrap 5, jQuery |
-| ASGI Server | Uvicorn 0.40.0 |
-| WSGI Server | Gunicorn 25.0.0 |
+| Database | PostgreSQL 18 (Docker image `postgres:18-alpine`) |
+| Cache / Broker | Redis 7.4.2 (image), redis-py 7.4.0 |
+| Task Queue | Celery 5.6.3, Celery Beat |
+| WebSockets | Django Channels 4.3.2, channels-redis 4.3.0 |
+| Payments | Stripe 11.5.0, django-paypal 2.1 |
+| AI | OpenAI 2.30.0 |
+| Rich Text | django-ckeditor-5 0.2.20 |
+| Images | Pillow 12.1.1 |
+| Frontend Build | Webpack 5, SCSS, Bootstrap 5.3.8, jQuery 4.0.0 |
+| ASGI Server | Uvicorn 0.42.0 |
+| WSGI Server | Gunicorn 25.3.0 |
 | Reverse Proxy | Nginx 1.27.4 |
 | SSL | Let's Encrypt (Certbot 4.0.0) |
 | Containerization | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
 | Linting | Flake8 7.3.0, djLint 1.36.4 |
-| Testing | Django TestCase, Coverage 7.13.2 |
+| Testing | Django TestCase, Coverage 7.13.5 |
 
 ---
 
@@ -97,7 +99,7 @@ flowchart TB
   end
 
   subgraph data [Data and async]
-    PG[(PostgreSQL 17)]
+    PG[(PostgreSQL 18)]
     Redis[(Redis)]
     CeleryW[Celery worker]
     CeleryB[Celery beat]
@@ -491,7 +493,7 @@ npm run w
 | Service | Image | Port | Purpose |
 |---|---|---|---|
 | `app` | Custom (Python 3.12-alpine) | 8000 | Django application |
-| `db` | postgres:17-alpine | -- | PostgreSQL database |
+| `db` | postgres:18-alpine | -- | PostgreSQL database |
 | `redis` | redis:7.4.2-alpine | 6379 | Cache, Channels layer, Celery broker |
 | `celery` | Custom | -- | Celery worker |
 | `celery-beat` | Custom | -- | Celery periodic task scheduler |
