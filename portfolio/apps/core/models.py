@@ -39,7 +39,7 @@ class Project(models.Model):
     content = models.TextField(blank=True)
     photo = models.ImageField(upload_to='portfolio/projects/', blank=True)
     github_url = models.URLField(max_length=200)
-    view_url = models.URLField(max_length=200)
+    view_url = models.URLField(max_length=200, blank=True)
     slug = models.SlugField(max_length=255, verbose_name='Slug', unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     category = models.ForeignKey(Category,
