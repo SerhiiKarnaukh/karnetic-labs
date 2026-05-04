@@ -192,3 +192,4 @@ postgres:
 	docker volume rm $$(docker volume ls -qf name=redisdata)
 	$(MAKE) deploy
 	$(MAKE) db-backup-restore
+#test actions
