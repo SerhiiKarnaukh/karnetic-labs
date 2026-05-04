@@ -192,4 +192,16 @@ postgres:
 	docker volume rm $$(docker volume ls -qf name=redisdata)
 	$(MAKE) deploy
 	$(MAKE) db-backup-restore
-#test actions
+
+# Install a specific Node.js version via nvm and set it as default.
+#
+# Usage:
+#   make node V=22.22.0
+node:
+	@if [ -z "$(V)" ]; then \
+		echo "❌ Usage: make node V=<version>   (example: make node V=22.22.0)"; \
+		exit 1; \
+	fi
+	@echo "📦 Installing Node.js $(V)..."
+	bash -lc 'nvm install $(V) && nvm use $(V) && nvm alias default $(V) && node -v && npm -v'
+	@echo "✅ Node.js $(V) installed and set as default"
