@@ -43,10 +43,15 @@ clean:
 	docker volume prune -f
 	docker builder prune --all -f
 
-# before install Poetry
-# curl -sSL https://install.python-poetry.org -o install-poetry.py
-# python install-poetry.py
-# poetry self add poetry-plugin-export
+# Before running make commands - install Poetry (one-time setup):#
+# Linux / macOS / WSL:
+#   curl -sSL https://install.python-poetry.org | python3 -
+#
+# Windows (PowerShell):
+#   (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+#
+# Or via pipx (recommended, cross-platform):
+#   pipx install poetry
 update:
 	rm -f pyproject.toml poetry.lock
 	poetry init --no-interaction --name project --quiet
