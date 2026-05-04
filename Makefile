@@ -2,6 +2,9 @@
 include .env
 export
 
+SHELL := /bin/bash
+.SHELLFLAGS := -l -c
+
 run:
 	docker-compose up -d
 
