@@ -2,7 +2,7 @@
 
 ### App on AWS: <https://karnaukh-webdev.com/category/django/ai-lab-back-end/>
 
-### App on Firebase: <https://karnaukh-vue-test.web.app/ai-lab>
+### App on Firebase: <https://app.karnaukh-webdev.com/ai-lab>
 
 ![AI Lab screenshot](https://github.com/SerhiiKarnaukh/karnetic-labs/blob/main/portfolio/apps/ai_lab/ai_lab_main.jpg)
 
@@ -284,7 +284,7 @@ The Chat endpoint supports OpenAI function calling. Tools are defined in `tools.
 
 The AI Lab frontend is a separate **Vue.js** application deployed on Firebase.
 
-- **Vue.js frontend**: <https://karnaukh-vue-test.web.app/ai-lab>
+- **Vue.js frontend**: <https://app.karnaukh-webdev.com/ai-lab>
 - **Project page**: <https://karnaukh-webdev.com/category/vuejs/ai-lab-front-end/>
 
 The frontend consumes the REST API directly. No authentication is required for any endpoint.
