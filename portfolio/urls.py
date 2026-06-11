@@ -44,9 +44,6 @@ urlpatterns = [
     # for AI Lab
     path('ai-lab/', include('ai_lab.urls')),
 
-    # for F1 Pit Wall Command Center
-    path('f1/', include('f1_pitwall.urls')),
-
 ]
 
 if settings.DEBUG:

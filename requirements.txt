@@ -14,10 +14,8 @@ djlint==1.36.4
 djoser==2.3.3
 flake8==7.3.0
 gunicorn==26.0.0
-httpx==0.28.1
 openai==2.38.0
 pillow==12.2.0
-prometheus-client==0.25.0
 psycopg2==2.9.12
 redis==8.0.0
 stripe==11.5.0

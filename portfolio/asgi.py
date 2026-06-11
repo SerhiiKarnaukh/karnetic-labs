@@ -20,14 +20,12 @@ ws_patterns = []
 
 
 def _load_websocket_patterns():
-    from .apps.f1_pitwall import routing as f1_pitwall_routing
     from .apps.social_chat import routing as social_chat_routing
     from .apps.social_notification import routing as social_notification_routing
 
     return (
         social_chat_routing.websocket_urlpatterns
         + social_notification_routing.websocket_urlpatterns
-        + f1_pitwall_routing.websocket_urlpatterns
     )
 
 
