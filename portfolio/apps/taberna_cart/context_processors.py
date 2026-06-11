@@ -1,6 +1,6 @@
-from .models import Cart, CartItem
+from taberna_cart.models import Cart, CartItem
+from taberna_cart.utils import get_cart_id
 from taberna_profiles.models import UserProfile
-from .utils import get_cart_id
 
 
 def counter(request):

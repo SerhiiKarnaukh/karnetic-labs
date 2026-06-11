@@ -17,8 +17,8 @@ class SendActivationEmailWithRequestTest(TestCase):
         self.factory = RequestFactory()
         self.request = self.factory.get("/")
 
-    @patch("accounts.utils.get_current_site")
-    @patch("accounts.utils.EmailMessage")
+    @patch("accounts.utils.emails.get_current_site")
+    @patch("accounts.utils.emails.EmailMessage")
     def test_email_sent_with_request_context(self, mock_email_class, mock_get_current_site):
         mock_get_current_site.return_value.domain = "mockedsite.com"
 

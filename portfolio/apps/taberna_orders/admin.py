@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Payment, Order, OrderProduct
+
+from taberna_orders.models import Order, OrderProduct, Payment
 
 
 class OrderProductInline(admin.TabularInline):

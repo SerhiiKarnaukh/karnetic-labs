@@ -1,7 +1,7 @@
 from django.contrib import admin
 import admin_thumbnails
 
-from .models import Category, Product, Variation, ReviewRating, ProductGallery
+from taberna_product.models import Category, Product, ProductGallery, ReviewRating, Variation
 
 
 @admin_thumbnails.thumbnail('image')

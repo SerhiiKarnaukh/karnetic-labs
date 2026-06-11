@@ -1,5 +1,6 @@
-from .models import Category
 from django.db.models import Count
+
+from taberna_product.models import Category
 
 
 def menu_categories(request):

@@ -1,24 +1,22 @@
 from django.urls import path
-from .views import cart, add_cart, checkout, remove_cart, remove_cart_item
 
-from . import api
+from taberna_cart import views
 
 urlpatterns = [
-    path('', cart, name='cart'),
-    path('add_cart/<int:product_id>/', add_cart, name='add_cart'),
+    path('', views.cart, name='cart'),
+    path('add_cart/<int:product_id>/', views.add_cart, name='add_cart'),
     path('remove_cart/<int:product_id>/<int:cart_item_id>/',
-         remove_cart,
+         views.remove_cart,
          name='remove_cart'),
     path('remove_cart_item/<int:product_id>/<int:cart_item_id>/',
-         remove_cart_item,
+         views.remove_cart_item,
          name='remove_cart_item'),
-    path('checkout/', checkout, name='checkout'),
+    path('checkout/', views.checkout, name='checkout'),
 
-    # API
-    path('api/cart/', api.CartAPIView.as_view(), name='taberna_api_cart'),
-    path('api/add-to-cart/<int:product_id>/', api.AddToCartView.as_view(), name='taberna_api_add_to_cart'),
+    path('api/cart/', views.CartAPIView.as_view(), name='taberna_api_cart'),
+    path('api/add-to-cart/<int:product_id>/', views.AddToCartView.as_view(), name='taberna_api_add_to_cart'),
     path('api/cart-remove/<int:product_id>/<int:cart_item_id>/',
-         api.RemoveCartItemAPIView.as_view(), name='taberna_api_remove_cart'),
+         views.RemoveCartItemAPIView.as_view(), name='taberna_api_remove_cart'),
     path('api/cart-item-remove/<int:product_id>/<int:cart_item_id>/',
-         api.RemoveCartItemFullyAPIView.as_view(), name='taberna_api_remove_cart_item_fully'),
+         views.RemoveCartItemFullyAPIView.as_view(), name='taberna_api_remove_cart_item_fully'),
 ]

@@ -1,7 +1,13 @@
 from django.urls import path
 
-from .views import CategoryDetail, ProjectSearchListView, ProjectDetail, ProjectsByTag
-from . import api
+from core.views import (
+    CategoryDetail,
+    ProjectDetail,
+    ProjectSearchListView,
+    ProjectsByTag,
+    VueAppsAPIList,
+    search_api,
+)
 
 app_name = 'core'
 
@@ -15,7 +21,6 @@ urlpatterns = [
          name='project_detail'),
     path('tag/<str:slug>/', ProjectsByTag.as_view(), name='tag'),
     path('search/', ProjectSearchListView.as_view(), name='search'),
-    # for Django Rest Framework
-    path('api/v1/vue-apps/', api.VueAppsAPIList.as_view(), name='vue_apps_api'),
-    path('api/v1/vue-apps/search/', api.search_api, name='search_api'),
+    path('api/v1/vue-apps/', VueAppsAPIList.as_view(), name='vue_apps_api'),
+    path('api/v1/vue-apps/search/', search_api, name='search_api'),
 ]

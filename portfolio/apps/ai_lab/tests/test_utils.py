@@ -11,7 +11,7 @@ from ai_lab.utils import StockAPI, generate_file_name_with_extension, get_next_v
 class StockAPITest(TestCase):
 
     @override_settings(ALPHA_VANTAGE_API_KEY="test_api_key")
-    @patch("ai_lab.utils.requests.get")
+    @patch("ai_lab.utils.stock.requests.get")
     def test_get_stock_price_success(self, mock_get):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -39,7 +39,7 @@ class StockAPITest(TestCase):
         self.assertIn("Missing API key", str(context.exception))
 
     @override_settings(ALPHA_VANTAGE_API_KEY="test_api_key")
-    @patch("ai_lab.utils.requests.get")
+    @patch("ai_lab.utils.stock.requests.get")
     def test_non_200_response_raises_connection_error(self, mock_get):
         mock_response = MagicMock()
         mock_response.status_code = 503

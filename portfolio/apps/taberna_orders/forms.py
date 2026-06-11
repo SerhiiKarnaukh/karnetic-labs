@@ -1,5 +1,6 @@
 from django import forms
-from .models import Order
+
+from taberna_orders.models import Order
 
 
 class OrderForm(forms.ModelForm):

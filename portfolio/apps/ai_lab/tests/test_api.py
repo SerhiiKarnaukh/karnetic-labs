@@ -10,7 +10,7 @@ from core.utils import create_test_image
 
 
 class AiLabChatViewTest(TestCase):
-    @patch("ai_lab.api.OpenAIService")
+    @patch("ai_lab.views.chat.OpenAIService")
     def test_text_only_request_success(self, mock_service_class):
         mock_service = MagicMock()
         mock_response = MagicMock()
@@ -26,8 +26,8 @@ class AiLabChatViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Funny AI joke", response.data["message"])
 
-    @patch("ai_lab.api.OpenAIService")
-    @patch("ai_lab.api.StockAPI.get_stock_price")
+    @patch("ai_lab.views.chat.OpenAIService")
+    @patch("ai_lab.views.chat.StockAPI.get_stock_price")
     def test_function_call_and_follow_up_success(self, mock_stock, mock_service_class):
         mock_service = MagicMock()
         function_call_response = MagicMock()
@@ -53,7 +53,7 @@ class AiLabChatViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Stock joke", response.data["message"])
 
-    @patch("ai_lab.api.OpenAIService")
+    @patch("ai_lab.views.chat.OpenAIService")
     def test_service_error_returns_500(self, mock_service_class):
         mock_service = MagicMock()
         mock_service.get_ai_response.side_effect = Exception("OpenAI down")
@@ -66,7 +66,7 @@ class AiLabChatViewTest(TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertIn("OpenAI down", response.data["message"])
 
-    @patch("ai_lab.api.OpenAIService")
+    @patch("ai_lab.views.chat.OpenAIService")
     def test_image_prompt_included_in_user_content(self, mock_service_class):
         mock_service = MagicMock()
         mock_response = MagicMock()
@@ -120,9 +120,9 @@ class AiLabImageGeneratorViewTest(TestCase):
         if os.path.exists(settings.MEDIA_ROOT) and not os.listdir(settings.MEDIA_ROOT):
             os.rmdir(settings.MEDIA_ROOT)
 
-    @patch("ai_lab.api.OpenAIService")
-    @patch("ai_lab.api.requests.get")
-    @patch("ai_lab.api.generate_file_name_with_extension", return_value="robot.png")
+    @patch("ai_lab.views.image.OpenAIService")
+    @patch("ai_lab.views.image.requests.get")
+    @patch("ai_lab.views.image.generate_file_name_with_extension", return_value="robot.png")
     def test_image_generated_and_saved_successfully(self, mock_filename, mock_requests_get, mock_openai_service):
         mock_service = MagicMock()
         mock_service.get_img_gen_response.return_value = "http://mocked.image.url/image.png"
@@ -146,8 +146,8 @@ class AiLabImageGeneratorViewTest(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["error"], "Prompt is required.")
 
-    @patch("ai_lab.api.OpenAIService")
-    @patch("ai_lab.api.requests.get")
+    @patch("ai_lab.views.image.OpenAIService")
+    @patch("ai_lab.views.image.requests.get")
     def test_download_fails_with_bad_status_code(self, mock_requests_get, mock_openai_service):
         mock_service = MagicMock()
         mock_service.get_img_gen_response.return_value = "http://mocked.image.url/image.png"
@@ -162,8 +162,8 @@ class AiLabImageGeneratorViewTest(TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertIn("Failed to download image", response.data["message"])
 
-    @patch("ai_lab.api.OpenAIService")
-    @patch("ai_lab.api.requests.get")
+    @patch("ai_lab.views.image.OpenAIService")
+    @patch("ai_lab.views.image.requests.get")
     def test_url_does_not_point_to_image(self, mock_requests_get, mock_openai_service):
         mock_service = MagicMock()
         mock_service.get_img_gen_response.return_value = "http://mocked.image.url/image.png"
@@ -228,8 +228,8 @@ class AiLabVoiceGeneratorViewTest(TestCase):
         self.url = reverse("ai_lab:ai_lab_voice_generator")
         self.prompt = "Say something inspiring"
 
-    @patch("ai_lab.api.OpenAIService")
-    @patch("ai_lab.api.generate_file_name_with_extension", return_value="inspiring.mp3")
+    @patch("ai_lab.views.voice.OpenAIService")
+    @patch("ai_lab.views.voice.generate_file_name_with_extension", return_value="inspiring.mp3")
     def test_voice_generated_and_saved_successfully(self, mock_filename, mock_openai_service):
         mock_service = MagicMock()
         mock_message = MagicMock()
@@ -252,7 +252,7 @@ class AiLabVoiceGeneratorViewTest(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["error"], "Prompt is required.")
 
-    @patch("ai_lab.api.OpenAIService")
+    @patch("ai_lab.views.voice.OpenAIService")
     def test_service_failure_returns_500(self, mock_openai_service):
         mock_service = MagicMock()
         mock_service.get_voice_gen_response.side_effect = Exception("Something went wrong")

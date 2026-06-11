@@ -1,6 +1,6 @@
 from django.urls import path
-from . import views
-from . import api
+
+from taberna_profiles import views
 
 urlpatterns = [
     path('register/', views.register, name='register'),
@@ -23,8 +23,7 @@ urlpatterns = [
          views.order_detail,
          name='order_detail'),
 
-    # API
-    path('api/register/', api.TabernaProfileCreateView.as_view(), name='taberna-api-register'),
-    path('api/v1/orders/', api.UserOrdersListView.as_view(), name="taberna-api-user-orders"),
-    path('api/v1/token/', api.CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/register/', views.TabernaProfileCreateView.as_view(), name='taberna-api-register'),
+    path('api/v1/orders/', views.UserOrdersListView.as_view(), name="taberna-api-user-orders"),
+    path('api/v1/token/', views.CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
 ]

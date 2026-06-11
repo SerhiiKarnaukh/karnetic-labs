@@ -4,7 +4,7 @@ from ai_lab.services import OpenAIService
 
 
 class OpenAIServiceConstructorTest(TestCase):
-    @patch("ai_lab.services.settings.OPENAI_API_KEY", "fake-key")
+    @patch("ai_lab.services.openai.settings.OPENAI_API_KEY", "fake-key")
     @patch("openai.OpenAI")
     def test_constructor_calls_openai_with_correct_key(self, mock_openai):
         OpenAIService()
@@ -13,7 +13,7 @@ class OpenAIServiceConstructorTest(TestCase):
 
 class OpenAIServiceTest(TestCase):
 
-    @patch("ai_lab.services.OpenAIService.__init__", return_value=None)
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_ai_response_success(self, mock_init):
         service = OpenAIService()
         service.client = MagicMock()
@@ -25,7 +25,7 @@ class OpenAIServiceTest(TestCase):
         result = service.get_ai_response([{"role": "user", "content": "hi"}], tools=[])
         self.assertEqual(result.content[0].text, "Mocked response")
 
-    @patch("ai_lab.services.OpenAIService.__init__", return_value=None)
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_ai_response_exception(self, mock_init):
         service = OpenAIService()
         service.client = MagicMock()
@@ -36,7 +36,7 @@ class OpenAIServiceTest(TestCase):
 
         self.assertIn("Error: API failure", str(ctx.exception))
 
-    @patch("ai_lab.services.OpenAIService.__init__", return_value=None)
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_img_gen_response_success(self, mock_init):
         service = OpenAIService()
         service.client = MagicMock()
@@ -48,7 +48,7 @@ class OpenAIServiceTest(TestCase):
         result = service.get_img_gen_response("a cat with a hat")
         self.assertEqual(result, "http://example.com/image.png")
 
-    @patch("ai_lab.services.OpenAIService.__init__", return_value=None)
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_voice_gen_response_success(self, mock_init):
         service = OpenAIService()
         service.client = MagicMock()
@@ -60,7 +60,7 @@ class OpenAIServiceTest(TestCase):
         result = service.get_voice_gen_response("say hello")
         self.assertEqual(result, "Audio response")
 
-    @patch("ai_lab.services.OpenAIService.__init__", return_value=None)
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_voice_gen_response_exception(self, mock_init):
         service = OpenAIService()
         service.client = MagicMock()
@@ -74,7 +74,7 @@ class OpenAIServiceTest(TestCase):
 
 class OpenAIServiceImgGenErrorTest(TestCase):
 
-    @patch("ai_lab.services.OpenAIService.__init__", return_value=None)
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_img_gen_raises_wrapped_exception(self, mock_init):
         service = OpenAIService()
         service.client = MagicMock()

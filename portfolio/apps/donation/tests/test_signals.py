@@ -24,7 +24,7 @@ class PaypalIPNSignalTest(TestCase):
         }
 
     @override_settings(PAYPAL_RECEIVER_EMAIL='merchant@example.com')
-    @patch('donation.signals.choice')
+    @patch('donation.signals.paypal.choice')
     def test_transaction_created_on_valid_ipn(self, mock_choice):
         mock_choice.return_value = self.donation
 

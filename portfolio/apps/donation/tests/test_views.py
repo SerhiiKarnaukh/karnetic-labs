@@ -9,8 +9,8 @@ from donation.models import Donation
 
 class MyDonationViewTest(TestCase):
 
-    @patch("donation.views.choice")
-    @patch("donation.views.stripe.checkout.Session.create")
+    @patch("donation.views.checkout.choice")
+    @patch("donation.views.checkout.stripe.checkout.Session.create")
     def test_my_donation_view_returns_expected_context(self, mock_stripe_create, mock_choice):
         # Mock Donation
         donation = Donation(title="Test Donation", amount=Decimal("12.34"))
@@ -38,8 +38,8 @@ class MyDonationViewTest(TestCase):
         self.assertEqual(paypal_form.initial["item_name"], donation.title)
         self.assertEqual(paypal_form.initial["business"], settings.PAYPAL_RECEIVER_EMAIL)
 
-    @patch("donation.views.choice", side_effect=IndexError)
-    @patch("donation.views.stripe.checkout.Session.create")
+    @patch("donation.views.checkout.choice", side_effect=IndexError)
+    @patch("donation.views.checkout.stripe.checkout.Session.create")
     def test_my_donation_fallback_if_no_donations(self, mock_stripe_create, mock_choice):
         mock_session = MagicMock()
         mock_session.id = "fallback_session_id"
@@ -57,7 +57,7 @@ class MyDonationViewTest(TestCase):
 
 class PaymentSuccessViewTest(TestCase):
 
-    @patch("donation.views.time.sleep")
+    @patch("donation.views.checkout.time.sleep")
     def test_payment_success_renders_correct_template(self, mock_sleep):
         response = self.client.get(reverse("payment-success"))
 

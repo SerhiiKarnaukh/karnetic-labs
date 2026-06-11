@@ -7,5 +7,5 @@ class DonationConfig(AppConfig):
     verbose_name = '09.Donation'
 
     def ready(self):
-        from . import signals
-        signals.paypal_payment_received
+        from donation.signals import paypal_payment_received
+        paypal_payment_received
