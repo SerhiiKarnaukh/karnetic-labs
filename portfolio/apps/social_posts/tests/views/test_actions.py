@@ -1,7 +1,8 @@
 import os
+import tempfile
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -71,6 +72,7 @@ class PostLikeViewTest(TestCase):
         self.assertEqual(self.post.likes.count(), 1)
 
 
+@override_settings(MEDIA_ROOT=os.path.join(tempfile.gettempdir(), "media"))
 class PostDeleteViewTest(TestCase):
 
     def setUp(self):

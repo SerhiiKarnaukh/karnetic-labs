@@ -1,7 +1,8 @@
 import os
+import tempfile
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -10,6 +11,7 @@ from social_profiles.models import Profile
 from social_posts.models import Post, PostAttachment
 
 
+@override_settings(MEDIA_ROOT=os.path.join(tempfile.gettempdir(), "test_media"))
 class PostCreateViewTest(TestCase):
     def setUp(self):
         self.client = APIClient()
