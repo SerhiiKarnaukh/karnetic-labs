@@ -1,11 +1,13 @@
 from django.urls import path
 
 from core.views import (
+    AngularAppsAPIList,
     CategoryDetail,
     ProjectDetail,
     ProjectSearchListView,
     ProjectsByTag,
     VueAppsAPIList,
+    angular_search_api,
     search_api,
 )
 
@@ -23,4 +25,6 @@ urlpatterns = [
     path('search/', ProjectSearchListView.as_view(), name='search'),
     path('api/v1/vue-apps/', VueAppsAPIList.as_view(), name='vue_apps_api'),
     path('api/v1/vue-apps/search/', search_api, name='search_api'),
+    path('api/v1/angular-apps/', AngularAppsAPIList.as_view(), name='angular_apps_api'),
+    path('api/v1/angular-apps/search/', angular_search_api, name='angular_search_api'),
 ]
