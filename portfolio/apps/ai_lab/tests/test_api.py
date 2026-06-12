@@ -294,3 +294,44 @@ class AiLabVisionImagesUploadViewTest(TestCase):
         response = self.client.post(self.url, {}, format="multipart")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["error"], "No images provided.")
+
+
+class AiLabRealtimeTokenViewTest(TestCase):
+    def setUp(self):
+        self.url = reverse("ai_lab:realtime-token")
+
+    @patch("ai_lab.views.realtime.requests.post")
+    def test_returns_normalized_client_secret(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "value": "ek_test_key",
+            "expires_at": 1234567890,
+            "session": {
+                "type": "realtime",
+                "model": "gpt-realtime",
+            },
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["client_secret"]["value"], "ek_test_key")
+        self.assertEqual(response.data["client_secret"]["expires_at"], 1234567890)
+        self.assertEqual(response.data["model"], "gpt-realtime")
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["session"]["output_modalities"], ["text"])
+        self.assertNotIn("audio", payload["session"])
+
+    @patch("ai_lab.views.realtime.requests.post")
+    def test_openai_error_returns_500(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.text = "Not found"
+        mock_post.return_value = mock_response
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.data["error"], "Failed to get token")
