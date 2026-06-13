@@ -1,5 +1,8 @@
 from django.conf import settings
 
+IMAGE_GEN_MODEL = "gpt-image-1"
+VOICE_GEN_MODEL = "gpt-audio-1.5"
+
 
 class OpenAIService:
     def __init__(self):
@@ -18,16 +21,23 @@ class OpenAIService:
     def get_img_gen_response(self, prompt):
         try:
             response = self.client.images.generate(
-                model="dall-e-3", prompt=prompt,
+                model=IMAGE_GEN_MODEL,
+                prompt=prompt,
+                size="1024x1024",
             )
-            return response.data[0].url
+            image = response.data[0]
+            if image.url:
+                return image.url
+            if image.b64_json:
+                return image.b64_json
+            raise Exception("No image data in response")
         except Exception as e:
             raise Exception(f"Error: {str(e)}")
 
     def get_voice_gen_response(self, prompt):
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o-audio-preview",
+                model=VOICE_GEN_MODEL,
                 modalities=["text", "audio"],
                 audio={"voice": "verse", "format": "mp3"},
                 messages=[{"role": "user", "content": prompt}],

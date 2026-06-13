@@ -141,6 +141,21 @@ class AiLabImageGeneratorViewTest(TestCase):
         self.assertIn("generated_images/robot.png", response.data["message"])
         self.assertTrue(os.path.exists(self.test_file_path))
 
+    @patch("ai_lab.views.image.OpenAIService")
+    @patch("ai_lab.views.image.generate_file_name_with_extension", return_value="robot.png")
+    def test_image_generated_from_base64(self, mock_filename, mock_openai_service):
+        mock_service = MagicMock()
+        mock_service.get_img_gen_response.return_value = "aW1hZ2UtZGF0YQ=="
+        mock_openai_service.return_value = mock_service
+
+        response = self.client.post(self.url, {"question": self.prompt}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("generated_images/robot.png", response.data["message"])
+        self.assertTrue(os.path.exists(self.test_file_path))
+        with open(self.test_file_path, "rb") as f:
+            self.assertEqual(f.read(), b"image-data")
+
     def test_missing_prompt_returns_400(self):
         response = self.client.post(self.url, {}, content_type="application/json")
         self.assertEqual(response.status_code, 400)

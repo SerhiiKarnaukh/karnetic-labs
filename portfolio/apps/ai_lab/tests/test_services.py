@@ -42,11 +42,28 @@ class OpenAIServiceTest(TestCase):
         service.client = MagicMock()
 
         mock_response = MagicMock()
-        mock_response.data = [MagicMock(url="http://example.com/image.png")]
+        mock_response.data = [MagicMock(url="http://example.com/image.png", b64_json=None)]
         service.client.images.generate.return_value = mock_response
 
         result = service.get_img_gen_response("a cat with a hat")
         self.assertEqual(result, "http://example.com/image.png")
+        service.client.images.generate.assert_called_once_with(
+            model="gpt-image-1",
+            prompt="a cat with a hat",
+            size="1024x1024",
+        )
+
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
+    def test_get_img_gen_response_returns_base64(self, mock_init):
+        service = OpenAIService()
+        service.client = MagicMock()
+
+        mock_response = MagicMock()
+        mock_response.data = [MagicMock(url=None, b64_json="aW1hZ2UtZGF0YQ==")]
+        service.client.images.generate.return_value = mock_response
+
+        result = service.get_img_gen_response("a cat with a hat")
+        self.assertEqual(result, "aW1hZ2UtZGF0YQ==")
 
     @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_voice_gen_response_success(self, mock_init):
@@ -59,6 +76,12 @@ class OpenAIServiceTest(TestCase):
 
         result = service.get_voice_gen_response("say hello")
         self.assertEqual(result, "Audio response")
+        service.client.chat.completions.create.assert_called_once_with(
+            model="gpt-audio-1.5",
+            modalities=["text", "audio"],
+            audio={"voice": "verse", "format": "mp3"},
+            messages=[{"role": "user", "content": "say hello"}],
+        )
 
     @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_voice_gen_response_exception(self, mock_init):
