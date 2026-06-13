@@ -349,4 +349,18 @@ class AiLabRealtimeTokenViewTest(TestCase):
         response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, 500)
-        self.assertEqual(response.data["error"], "Failed to get token")
+        self.assertEqual(response.data["message"], "Failed to get realtime token.")
+
+    @patch("ai_lab.views.realtime.requests.post")
+    def test_openai_quota_error_returns_402(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.text = (
+            '{"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}'
+        )
+        mock_post.return_value = mock_response
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 402)
+        self.assertEqual(response.data["error_code"], "openai_quota_exceeded")

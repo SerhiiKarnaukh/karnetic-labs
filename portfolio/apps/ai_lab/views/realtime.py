@@ -4,6 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ai_lab.utils.errors import build_ai_lab_error_from_http_body, build_ai_lab_error_response
 REALTIME_MODEL = "gpt-realtime"
 REALTIME_CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
 
@@ -49,12 +50,14 @@ class AiLabRealtimeTokenView(APIView):
             )
 
             if response.status_code != 200:
-                return Response(
-                    {"error": "Failed to get token", "details": response.text},
-                    status=500,
+                data, status = build_ai_lab_error_from_http_body(
+                    response.text,
+                    default_message="Failed to get realtime token.",
                 )
+                return Response(data, status=status)
 
             return Response(_normalize_client_secret_response(response.json()))
 
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            data, status = build_ai_lab_error_response(e)
+            return Response(data, status=status)

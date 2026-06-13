@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ai_lab.utils.errors import build_ai_lab_error_response
 from ai_lab.services import OpenAIService
 from ai_lab.utils import generate_file_name_with_extension
 
@@ -26,7 +27,8 @@ class AiLabImageGeneratorView(APIView):
 
             return Response({"message": full_url})
         except Exception as e:
-            return Response({"message": str(e)}, status=500)
+            data, status = build_ai_lab_error_response(e)
+            return Response(data, status=status)
 
     def generate_image(self, prompt):
         openai_service = OpenAIService()

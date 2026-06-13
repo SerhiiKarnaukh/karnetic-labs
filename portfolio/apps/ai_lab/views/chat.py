@@ -4,6 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ai_lab.utils.errors import build_ai_lab_error_from_http_body, build_ai_lab_error_response
 from ai_lab.services import OpenAIService
 from ai_lab.tools import TOOLS
 from ai_lab.utils import StockAPI
@@ -58,4 +59,5 @@ class AiLabChatView(APIView):
             return Response({"message": response_output.content[0].text})
 
         except Exception as e:
-            return Response({"message": str(e)}, status=500)
+            data, status = build_ai_lab_error_response(e)
+            return Response(data, status=status)
