@@ -6,6 +6,7 @@ from core.views import (
     ProjectDetail,
     ProjectSearchListView,
     ProjectsByTag,
+    TopbarLinksAPIList,
     VueAppsAPIList,
     angular_search_api,
     search_api,
@@ -27,4 +28,5 @@ urlpatterns = [
     path('api/v1/vue-apps/search/', search_api, name='search_api'),
     path('api/v1/angular-apps/', AngularAppsAPIList.as_view(), name='angular_apps_api'),
     path('api/v1/angular-apps/search/', angular_search_api, name='angular_search_api'),
+    path('api/v1/topbar-links/', TopbarLinksAPIList.as_view(), name='topbar_links_api'),
 ]

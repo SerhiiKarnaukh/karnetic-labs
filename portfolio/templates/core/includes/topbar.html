@@ -1,0 +1,18 @@
+<!-- Topbar Start -->
+<div class="container-fluid dark-bg px-5 portfolio-topbar">
+    <div class="row gx-0">
+        <div class="col-sm-8 text-center align-items-center text-sm-start">
+            <div class="d-inline-flex align-items-center topbar-wrap">
+                <a href="{% url 'core:index' %}"><small class="me-3 text-light"><i class="fa fa-database me-2"></i>Test Applications Manager</small></a>
+            </div>
+        </div>
+        {% if topbar_links %}
+            <div class="col-sm-4 text-center text-sm-end mb-2 mb-sm-0">
+                <div class="d-inline-flex align-items-center topbar-wrap">
+                    {% include "core/includes/topbar_links.html" %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+<!-- Topbar End -->

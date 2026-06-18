@@ -1,0 +1,7 @@
+{% for link in topbar_links %}
+    <a class="btn btn-sm btn-outline-light btn-sm-square rounded-circle{% if not forloop.last %} me-2{% endif %}"
+       href="{{ link.url }}"
+       target="_blank"
+       rel="noopener noreferrer"
+       title="{{ link.title }}"><i class="{{ link.icon_class }}"></i></a>
+{% endfor %}

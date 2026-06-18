@@ -129,6 +129,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.menu_categories",
                 "core.context_processors.core_tags",
+                "core.context_processors.topbar_links",
                 "taberna_product.context_processors.menu_categories",
                 "taberna_product.context_processors.top_categories",
                 "taberna_cart.context_processors.counter",

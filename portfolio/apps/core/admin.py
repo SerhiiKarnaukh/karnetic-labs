@@ -7,7 +7,7 @@ from django_ckeditor_5.widgets import CKEditor5Widget
 import admin_thumbnails
 
 
-from .models import Category, Tag, Project, ProjectGallery, ServerStatistics
+from .models import Category, Tag, Project, ProjectGallery, ServerStatistics, TopbarLink
 
 
 ERROR_PREFIX = ServerStatistics.ERROR_PREFIX
@@ -104,6 +104,20 @@ class CategoryAdmin(admin.ModelAdmin):
 
 class TagAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("title", )}
+
+
+@admin.register(TopbarLink)
+class TopbarLinkAdmin(admin.ModelAdmin):
+    list_display = ('ordering', 'key', 'title', 'url', 'icon_class')
+    list_display_links = ('key', 'title')
+    list_editable = ('ordering', 'url')
+    ordering = ('ordering', 'key')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ServerStatistics)

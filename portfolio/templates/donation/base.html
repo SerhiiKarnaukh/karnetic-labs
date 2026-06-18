@@ -28,33 +28,7 @@
                 max-width:500px;
             }
         </style>
-        <!-- Topbar Start -->
-        <div class="container-fluid dark-bg px-5 portfolio-topbar">
-            <div class="row gx-0">
-                <div class="col-sm-8 text-center align-items-center text-sm-start">
-                    <div class="d-inline-flex align-items-center topbar-wrap">
-                        <a href="{% url 'core:index' %}"><small class="me-3 text-light"><i class="fa fa-database me-2"></i>Test Applications Manager</small></a>
-                    </div>
-                </div>
-                <div class="col-sm-4 text-center text-sm-end mb-2 mb-sm-0">
-                    <div class="d-inline-flex align-items-center topbar-wrap">
-                        <a class="btn btn-sm btn-outline-light btn-sm-square rounded-circle me-2"
-                           href="https://docs.google.com/document/d/11DNF9pFl0wQLNXac779DO6axLG67nMGIBC_bPTPulRQ/edit?usp=share_link"
-                           target="_blank"
-                           title="CV"><i class="fas fa-user-cog"></i></a>
-                        <a class="btn btn-sm btn-outline-light btn-sm-square rounded-circle me-2"
-                           href="https://github.com/SerhiiKarnaukh"
-                           target="_blank"
-                           title="GitHub Account"><i class="fab fa-github fw-normal"></i></a>
-                        <a class="btn btn-sm btn-outline-light btn-sm-square rounded-circle"
-                           href="https://www.linkedin.com/in/serhiikarnaukh"
-                           target="_blank"
-                           title="LinkedIn Account"><i class="fab fa-linkedin-in fw-normal"></i></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Topbar End -->
+        {% include "core/includes/topbar.html" %}
         {% block content %}
         {% endblock content %}
         <script src="https://js.stripe.com/v3/"></script>
