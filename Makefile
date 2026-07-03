@@ -70,8 +70,9 @@ update_front_taberna:
 	cd portfolio/apps/taberna_product/_dev && \
 	rm -rf node_modules && \
 	rm -f package-lock.json && \
-	ncu && \
-	ncu -u && \
+	ncu --reject @babel/preset-env && \
+	ncu -u --reject @babel/preset-env && \
+	ncu @babel/preset-env -u --target semver && \
 	npm install && \
 	npm run b && \
 	rm -rf node_modules && \
@@ -81,8 +82,9 @@ update_front_core:
 	cd portfolio/apps/core/_dev && \
 	rm -rf node_modules && \
 	rm -f package-lock.json && \
-	ncu && \
-	ncu -u && \
+	ncu --reject @babel/preset-env && \
+	ncu -u --reject @babel/preset-env && \
+	ncu @babel/preset-env -u --target semver && \
 	npm install && \
 	npm run b && \
 	rm -rf node_modules && \
