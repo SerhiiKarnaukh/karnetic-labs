@@ -5,6 +5,7 @@ from core.views.portfolio import (
     ProjectsByTag,
 )
 from core.views.angular_api import AngularAppsAPIList, angular_search_api
+from core.views.react_api import ReactAppsAPIList, react_search_api
 from core.views.topbar_api import TopbarLinksAPIList
 from core.views.vue_api import VueAppsAPIList, search_api
 
@@ -14,8 +15,10 @@ __all__ = [
     'ProjectDetail',
     'ProjectSearchListView',
     'ProjectsByTag',
+    'ReactAppsAPIList',
     'TopbarLinksAPIList',
     'VueAppsAPIList',
     'angular_search_api',
+    'react_search_api',
     'search_api',
 ]
