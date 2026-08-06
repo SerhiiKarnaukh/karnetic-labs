@@ -18,6 +18,7 @@
   - [Image Download](#image-download)
   - [Voice Generation](#voice-generation)
   - [Vision Image Upload](#vision-image-upload)
+  - [Vision Image Delete](#vision-image-delete)
   - [Realtime Token](#realtime-token)
 - [Services](#services)
 - [Function Calling (Tools)](#function-calling-tools)
@@ -31,7 +32,7 @@
 
 ## Overview
 
-**AI Lab** is a pure REST API module powered by the OpenAI platform. It exposes endpoints for conversational chat (GPT-4o with function calling), image generation (DALL-E 3), voice synthesis (GPT-4o Audio Preview), vision image analysis, and Realtime API token provisioning.
+**AI Lab** is a pure REST API module powered by the OpenAI platform. It exposes endpoints for conversational chat (`gpt-4o` with function calling), image generation (`gpt-image-1`), voice synthesis (`gpt-audio-1.5`), vision image analysis, and Realtime API token provisioning (`gpt-realtime-2.1`).
 
 The app has **no database models** -- generated files (images, audio) are stored in the media directory and cleaned up daily by a Celery task. All endpoints are publicly accessible (`AllowAny`).
 
@@ -45,7 +46,8 @@ Vue.js Frontend (Firebase)
        ▼  REST API (JSON)
    AI Lab API Views
        │
-       ├── OpenAIService ──── OpenAI API (GPT-4o, DALL-E 3, Audio Preview, Realtime)
+       ├── OpenAIService ──── OpenAI API (gpt-4o, gpt-image-1, gpt-audio-1.5)
+       ├── Realtime Token View ─ OpenAI Realtime API (gpt-realtime-2.1)
        │
        ├── StockAPI ────────── Alpha Vantage API (function calling)
        │
@@ -64,7 +66,7 @@ Vue.js Frontend (Firebase)
 
 Base: `/ai-lab/`
 
-All endpoints use Django REST Framework `APIView` with `AllowAny` permission.
+All endpoints use Django REST Framework `APIView` with `AllowAny` permission. OpenAI quota exhaustion is mapped to HTTP `402` with `error_code: openai_quota_exceeded`; other failures return `500`.
 
 ### Chat
 
@@ -95,7 +97,7 @@ Conversational chat with GPT-4o. Supports text prompts, image inputs for vision,
 
 **`POST /ai-lab/image-generator/`** -- `AiLabImageGeneratorView`
 
-Generates an image using DALL-E 3, downloads it, and saves it locally.
+Generates an image using `gpt-image-1` and saves it locally.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -108,8 +110,8 @@ Generates an image using DALL-E 3, downloads it, and saves it locally.
 ```
 
 **Behavior:**
-- Generates image via DALL-E 3
-- Downloads the resulting image from OpenAI's URL
+- Generates image via `gpt-image-1` (size: `1024x1024`)
+- Saves the result from OpenAI's URL or base64 payload
 - Saves to `MEDIA_ROOT/generated_images/` with an auto-versioned filename
 - Returns the full public URL to the saved image
 - Returns `400` if prompt is missing, `500` on errors
@@ -136,7 +138,7 @@ Serves a previously generated image as a file download.
 
 **`POST /ai-lab/voice-generator/`** -- `AiLabVoiceGeneratorView`
 
-Generates speech audio from a text prompt using GPT-4o Audio Preview.
+Generates speech audio from a text prompt using `gpt-audio-1.5`.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -149,7 +151,7 @@ Generates speech audio from a text prompt using GPT-4o Audio Preview.
 ```
 
 **Behavior:**
-- Generates audio via GPT-4o Audio Preview (voice: `verse`, format: `mp3`)
+- Generates audio via `gpt-audio-1.5` (voice: `verse`, format: `mp3`)
 - Decodes base64 audio data and saves to `MEDIA_ROOT/generated_voices/`
 - Returns the full public URL to the saved audio file
 - Returns `400` if prompt is missing, `500` on errors
@@ -174,9 +176,29 @@ Uploads images for subsequent use with the Chat endpoint's vision capability.
 
 **Behavior:**
 - Saves files to `MEDIA_ROOT/vision_images/`
-- Handles filename conflicts by appending a counter suffix
+- Handles filename conflicts by appending a random hash suffix
 - Returns an array of full URLs to the uploaded images
 - Returns `400` if no images are provided
+
+---
+
+### Vision Image Delete
+
+**`DELETE /ai-lab/delete-vision-image/`** -- `AiLabVisionImageDeleteView`
+
+Deletes a previously uploaded vision image.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `filename` | string | Yes | Name of the image file |
+
+**Response:**
+
+```json
+{ "message": "File 'photo1.jpg' deleted successfully." }
+```
+
+- Returns `400` if filename is missing or invalid, `404` if file not found
 
 ---
 
@@ -184,31 +206,34 @@ Uploads images for subsequent use with the Chat endpoint's vision capability.
 
 **`POST /ai-lab/realtime-token/`** -- `AiLabRealtimeTokenView`
 
-Creates an OpenAI Realtime API session token for client-side streaming.
+Creates an OpenAI Realtime API client secret for client-side streaming.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | *(none)* | -- | -- | No request body needed |
 
-**Response:** JSON session object from OpenAI (contains ephemeral token)
+**Response:** JSON object with session details and an ephemeral `client_secret`
 
 **Behavior:**
 - No authentication required (`authentication_classes = []`)
-- Creates a Realtime session with model `gpt-4o-realtime-preview-2024-12-17`, voice `alloy`
-- Returns the raw OpenAI session response
-- Returns `500` on errors
+- Requests a client secret via `POST /v1/realtime/client_secrets`
+- Creates a Realtime session with model `gpt-realtime-2.1` and `output_modalities: ["text"]`
+- Normalizes the OpenAI response into a consistent shape with `client_secret.value` and `client_secret.expires_at`
+- Returns `402` with `error_code: openai_quota_exceeded` when OpenAI credits are exhausted, `500` on other errors
 
 ---
 
 ## Services
 
-`services.py` encapsulates all OpenAI API interactions in the `OpenAIService` class:
+`services/openai.py` encapsulates all OpenAI API interactions in the `OpenAIService` class:
 
 | Method | Model | API | Description |
 |---|---|---|---|
-| `get_ai_response(messages, tools)` | gpt-4o | `responses.create()` | Chat completion with function calling support |
-| `get_img_gen_response(prompt)` | dall-e-3 | `images.generate()` | Image generation, returns image URL |
-| `get_voice_gen_response(prompt)` | gpt-4o-audio-preview | `chat.completions.create()` | Voice synthesis (modalities: text + audio, voice: verse, format: mp3) |
+| `get_ai_response(messages, tools)` | `gpt-4o` | `responses.create()` | Chat completion with function calling support |
+| `get_img_gen_response(prompt)` | `gpt-image-1` | `images.generate()` | Image generation (1024x1024), returns image URL or base64 |
+| `get_voice_gen_response(prompt)` | `gpt-audio-1.5` | `chat.completions.create()` | Voice synthesis (modalities: text + audio, voice: verse, format: mp3) |
+
+Realtime token provisioning lives in `views/realtime.py` and calls the OpenAI REST API directly with model `gpt-realtime-2.1`.
 
 All methods raise descriptive exceptions on failure.
 
@@ -216,7 +241,7 @@ All methods raise descriptive exceptions on failure.
 
 ## Function Calling (Tools)
 
-The Chat endpoint supports OpenAI function calling. Tools are defined in `tools.py`:
+The Chat endpoint supports OpenAI function calling. Tools are defined in `tools/openai_tools.py`:
 
 | Tool | Function | Description |
 |---|---|---|
@@ -234,13 +259,14 @@ The Chat endpoint supports OpenAI function calling. Tools are defined in `tools.
 
 ## Utility Functions
 
-`utils.py` provides helpers for file management and external APIs:
+The `utils/` package provides helpers for file management, error handling, and external APIs:
 
-| Function | Description |
-|---|---|
-| `StockAPI.get_stock_price(symbol)` | Fetches stock price from Alpha Vantage `GLOBAL_QUOTE` endpoint |
-| `generate_file_name_with_extension(prompt, dir, extension)` | Creates a unique filename from a prompt (max 25 chars, auto-versioned) |
-| `get_next_version_number(base_file_name, extension, dir)` | Scans directory for existing files and returns next version number |
+| Module | Function | Description |
+|---|---|---|
+| `utils/stock.py` | `StockAPI.get_stock_price(symbol)` | Fetches stock price from Alpha Vantage `GLOBAL_QUOTE` endpoint |
+| `utils/files.py` | `generate_file_name_with_extension(prompt, dir, extension)` | Creates a unique filename from a prompt (max 25 chars, auto-versioned) |
+| `utils/files.py` | `get_next_version_number(base_file_name, extension, dir)` | Scans directory for existing files and returns next version number |
+| `utils/errors.py` | `build_ai_lab_error_response(error)` | Maps OpenAI quota errors to `402` with a user-friendly message |
 
 **Filename format:** `{prompt_text}_v{version}.{extension}` (e.g. `a_sunset_over_mountains_v3.png`)
 
@@ -274,8 +300,8 @@ The Chat endpoint supports OpenAI function calling. Tools are defined in `tools.
 
 | Directory | Content |
 |---|---|
-| `generated_images/` | DALL-E 3 generated images (PNG) |
-| `generated_voices/` | GPT-4o Audio generated voice files (MP3) |
+| `generated_images/` | `gpt-image-1` generated images (PNG) |
+| `generated_voices/` | `gpt-audio-1.5` generated voice files (MP3) |
 | `vision_images/` | User-uploaded images for vision processing |
 
 ---
@@ -300,6 +326,7 @@ Tests are located in the `tests/` directory:
 | `test_api.py` | Chat (text, vision, function calling, errors), Image generation (success, missing prompt, download failures), Image download (success, missing filename, 404), Voice generation (success, missing prompt, errors), Vision upload (success, no images) |
 | `test_services.py` | OpenAIService constructor, `get_ai_response` (success, exception), `get_img_gen_response` (success, exception), `get_voice_gen_response` (success, exception) |
 | `test_utils.py` | `StockAPI.get_stock_price` (success, missing key, connection error), `generate_file_name_with_extension` (initial version, increment), `get_next_version_number` (missing dir, irrelevant files) |
+| `test_errors.py` | OpenAI quota error detection and `402` response mapping |
 
 Run tests:
 

@@ -324,7 +324,7 @@ class AiLabRealtimeTokenViewTest(TestCase):
             "expires_at": 1234567890,
             "session": {
                 "type": "realtime",
-                "model": "gpt-realtime",
+                "model": "gpt-realtime-2.1",
             },
         }
         mock_post.return_value = mock_response
@@ -334,7 +334,7 @@ class AiLabRealtimeTokenViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["client_secret"]["value"], "ek_test_key")
         self.assertEqual(response.data["client_secret"]["expires_at"], 1234567890)
-        self.assertEqual(response.data["model"], "gpt-realtime")
+        self.assertEqual(response.data["model"], "gpt-realtime-2.1")
         payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["session"]["output_modalities"], ["text"])
         self.assertNotIn("audio", payload["session"])

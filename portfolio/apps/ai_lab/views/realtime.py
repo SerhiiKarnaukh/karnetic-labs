@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ai_lab.utils.errors import build_ai_lab_error_from_http_body, build_ai_lab_error_response
-REALTIME_MODEL = "gpt-realtime"
+REALTIME_MODEL = "gpt-realtime-2.1"
 REALTIME_CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
 
 
