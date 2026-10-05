@@ -46,3 +46,11 @@ class OpenAIQuotaErrorTest(TestCase):
         self.assertEqual(status, 500)
         self.assertEqual(data["message"], "Failed to get realtime token.")
         self.assertEqual(data["details"], body)
+
+    def test_detects_quota_marker_in_error_body_message_and_code(self):
+        error = Exception('request failed')
+        error.body = {'error': 'billing problem'}
+        error.message = 'Payment required'
+        error.code = 'insufficient_quota'
+
+        self.assertTrue(is_openai_quota_error(error))

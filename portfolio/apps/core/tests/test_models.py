@@ -4,7 +4,13 @@ import os
 import shutil
 from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
-from core.models import Category, Project, ProjectGallery
+from core.models import (
+    Category,
+    Project,
+    ProjectGallery,
+    ServerStatistics,
+    TopbarLink,
+)
 
 
 @override_settings(MEDIA_ROOT=os.path.join(tempfile.gettempdir(), "media"))
@@ -55,3 +61,25 @@ class ProjectGalleryModelTest(TestCase):
     def tearDown(self):
         media_dir = os.path.join(tempfile.gettempdir(), "media")
         shutil.rmtree(media_dir, ignore_errors=True)
+
+
+class CoreModelStringTests(TestCase):
+    def test_server_statistics_string_representation(self):
+        statistics = ServerStatistics.objects.create(
+            app_version='1.2.3',
+            db_size='1 MB',
+            media_size='2 MB',
+            disk_total='10 MB',
+            disk_used='3 MB',
+            disk_available='7 MB',
+        )
+
+        self.assertIn('v1.2.3', str(statistics))
+
+    def test_topbar_link_string_representation(self):
+        link, _ = TopbarLink.objects.get_or_create(
+            key=TopbarLink.Key.GITHUB,
+            defaults={'title': 'GitHub', 'icon_class': 'github'},
+        )
+
+        self.assertEqual(str(link), link.title)

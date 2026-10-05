@@ -66,6 +66,17 @@ class OpenAIServiceTest(TestCase):
         self.assertEqual(result, "aW1hZ2UtZGF0YQ==")
 
     @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
+    def test_get_img_gen_response_rejects_empty_response(self, mock_init):
+        service = OpenAIService()
+        service.client = MagicMock()
+        service.client.images.generate.return_value.data = [
+            MagicMock(url=None, b64_json=None)
+        ]
+
+        with self.assertRaisesRegex(Exception, "No image data in response"):
+            service.get_img_gen_response("a cat with a hat")
+
+    @patch("ai_lab.services.openai.OpenAIService.__init__", return_value=None)
     def test_get_voice_gen_response_success(self, mock_init):
         service = OpenAIService()
         service.client = MagicMock()

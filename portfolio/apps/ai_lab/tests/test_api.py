@@ -364,3 +364,69 @@ class AiLabRealtimeTokenViewTest(TestCase):
 
         self.assertEqual(response.status_code, 402)
         self.assertEqual(response.data["error_code"], "openai_quota_exceeded")
+
+    @patch("ai_lab.views.realtime.requests.post")
+    def test_preserves_existing_client_secret(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "client_secret": {"value": "already-normalized"},
+            "model": "gpt-realtime-2.1",
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["client_secret"]["value"], "already-normalized")
+
+    @patch("ai_lab.views.realtime.requests.post", side_effect=RuntimeError("Network unavailable"))
+    def test_request_exception_returns_error_response(self, mock_post):
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.data["message"], "Network unavailable")
+
+
+@override_settings(MEDIA_ROOT=os.path.join(tempfile.gettempdir(), "ai_lab_vision_media"))
+class AiLabVisionImageDeleteViewTest(TestCase):
+    def setUp(self):
+        self.url = reverse("ai_lab:delete-vision-image")
+        self.directory = os.path.join(settings.MEDIA_ROOT, "vision_images")
+        os.makedirs(self.directory, exist_ok=True)
+
+    def tearDown(self):
+        if os.path.exists(settings.MEDIA_ROOT):
+            import shutil
+            shutil.rmtree(settings.MEDIA_ROOT)
+
+    def test_missing_filename_returns_400(self):
+        response = self.client.delete(self.url, {}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_path_traversal_returns_400(self):
+        response = self.client.delete(
+            self.url, {"filename": "../secret.png"}, content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_missing_file_returns_404(self):
+        response = self.client.delete(
+            self.url, {"filename": "missing.png"}, content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_deletes_existing_file(self):
+        path = os.path.join(self.directory, "image.png")
+        with open(path, "wb") as image_file:
+            image_file.write(b"image")
+
+        response = self.client.delete(
+            self.url, {"filename": "image.png"}, content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(os.path.exists(path))

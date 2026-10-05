@@ -1,5 +1,6 @@
 import os
 import tempfile
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -68,3 +69,26 @@ class SocialTokenObtainPairViewTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn('access', res.data)
         self.assertIn('refresh', res.data)
+
+    @patch('social_profiles.views.auth.authenticate', return_value=None)
+    def test_authenticated_serializer_without_user_returns_401(self, mock_authenticate):
+        self._create_active_user()
+
+        res = self.client.post(
+            self.url,
+            {'email': 'soc@example.com', 'password': 'testpass123'},
+            format='json',
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(res.data['error'], 'Invalid login credentials.')
+
+    def test_invalid_token_data_returns_authentication_error(self):
+        res = self.client.post(
+            self.url,
+            {'email': 'missing@example.com', 'password': 'incorrect'},
+            format='json',
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Authentication failed:', res.data['error'])
