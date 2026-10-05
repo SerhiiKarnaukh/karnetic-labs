@@ -1,8 +1,12 @@
 from decimal import Decimal
 import os
+import shutil
 import tempfile
+
+from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
+
 from core.utils import create_active_user, create_test_image
 from taberna_product.models import Category, Product
 from taberna_profiles.models import UserProfile
@@ -19,7 +23,11 @@ class StorefrontViewsTest(TestCase):
             last_name="User",
         )
         profile = UserProfile.objects.create(user=user)
-        self.category = Category.objects.create(name="Store", slug="store", cat_image=create_test_image("category.png"))
+        self.category = Category.objects.create(
+            name="Store",
+            slug="store",
+            cat_image=create_test_image("category.png"),
+        )
         self.product = Product.objects.create(
             category=self.category,
             created_by=profile,
@@ -29,6 +37,9 @@ class StorefrontViewsTest(TestCase):
             stock=1,
             image=create_test_image("product.png"),
         )
+
+    def tearDown(self):
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
 
     def test_storefront_pages(self):
         urls = [

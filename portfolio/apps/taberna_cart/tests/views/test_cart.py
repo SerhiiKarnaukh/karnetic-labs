@@ -1,8 +1,12 @@
 from decimal import Decimal
 import os
+import shutil
 import tempfile
+
+from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
+
 from core.utils import create_active_user, create_test_image
 from taberna_cart.models import CartItem
 from taberna_product.models import Category, Product
@@ -13,7 +17,11 @@ from taberna_profiles.models import UserProfile
 class CartViewsTest(TestCase):
     def setUp(self):
         self.user = create_active_user(
-            email="view@example.com", username="view", password="pass123", first_name="View", last_name="User"
+            email="view@example.com",
+            username="view",
+            password="pass123",
+            first_name="View",
+            last_name="User",
         )
         self.profile = UserProfile.objects.create(user=self.user)
         category = Category.objects.create(name="View", slug="view")
@@ -26,6 +34,9 @@ class CartViewsTest(TestCase):
             stock=2,
             image=create_test_image("item.png"),
         )
+
+    def tearDown(self):
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
 
     def test_guest_add_remove_and_cart_page(self):
         self.client.post(reverse("add_cart", args=[self.product.id]))

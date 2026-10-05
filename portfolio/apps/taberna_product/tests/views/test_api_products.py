@@ -1,7 +1,11 @@
 from decimal import Decimal
 import os
+import shutil
 import tempfile
+
+from django.conf import settings
 from django.test import TestCase, override_settings
+
 from core.utils import create_active_user, create_test_image
 from taberna_product.models import Category, Product, Variation
 from taberna_profiles.models import UserProfile
@@ -29,7 +33,14 @@ class ProductApiViewsTest(TestCase):
             stripe_product_id="prod_1",
             image=create_test_image("product.png"),
         )
-        Variation.objects.create(product=self.product, variation_category="color", variation_value="Red")
+        Variation.objects.create(
+            product=self.product,
+            variation_category="color",
+            variation_value="Red",
+        )
+
+    def tearDown(self):
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
 
     def test_product_endpoints(self):
         self.assertEqual(self.client.get("/taberna-store/api/v1/latest-products/").status_code, 200)
