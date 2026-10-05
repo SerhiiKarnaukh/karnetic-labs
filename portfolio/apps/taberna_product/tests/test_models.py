@@ -4,12 +4,21 @@ from core.utils import create_active_user
 from taberna_product.models import Category, Product, ReviewRating, Variation
 from taberna_profiles.models import UserProfile
 
+
 class ProductModelsTest(TestCase):
     def setUp(self):
-        user = create_active_user(email="product@example.com", username="product", password="pass123", first_name="Product", last_name="User")
+        user = create_active_user(
+            email="product@example.com",
+            username="product",
+            password="pass123",
+            first_name="Product",
+            last_name="User",
+        )
         self.profile = UserProfile.objects.create(user=user)
         self.category = Category.objects.create(name="Coffee", slug="coffee")
-        self.product = Product.objects.create(category=self.category, created_by=self.profile, name="Beans", slug="beans", price=Decimal("9.99"), stock=4)
+        self.product = Product.objects.create(
+            category=self.category, created_by=self.profile, name="Beans", slug="beans", price=Decimal("9.99"), stock=4
+        )
 
     def test_models_urls_reviews_and_variations(self):
         review = ReviewRating.objects.create(product=self.product, user=self.profile, subject="Good", rating=4)
@@ -26,7 +35,9 @@ class ProductModelsTest(TestCase):
 
     def test_empty_reviews_and_model_strings(self):
         from taberna_product.models import ProductGallery
-        product = Product.objects.create(category=self.category, created_by=self.profile, name="Other", slug="other", price=Decimal("1"), stock=1)
+        product = Product.objects.create(
+            category=self.category, created_by=self.profile, name="Other", slug="other", price=Decimal("1"), stock=1
+        )
         variation = Variation.objects.create(product=product, variation_category="color", variation_value="Blue")
         gallery = ProductGallery.objects.create(product=product, image="gallery.png")
         self.assertEqual(str(product), "Other")

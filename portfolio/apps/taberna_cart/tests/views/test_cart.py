@@ -8,13 +8,24 @@ from taberna_cart.models import CartItem
 from taberna_product.models import Category, Product
 from taberna_profiles.models import UserProfile
 
+
 @override_settings(MEDIA_ROOT=os.path.join(tempfile.gettempdir(), "taberna_cart_views"))
 class CartViewsTest(TestCase):
     def setUp(self):
-        self.user = create_active_user(email="view@example.com", username="view", password="pass123", first_name="View", last_name="User")
+        self.user = create_active_user(
+            email="view@example.com", username="view", password="pass123", first_name="View", last_name="User"
+        )
         self.profile = UserProfile.objects.create(user=self.user)
         category = Category.objects.create(name="View", slug="view")
-        self.product = Product.objects.create(category=category, created_by=self.profile, name="Item", slug="view-item", price=Decimal("5"), stock=2, image=create_test_image("item.png"))
+        self.product = Product.objects.create(
+            category=category,
+            created_by=self.profile,
+            name="Item",
+            slug="view-item",
+            price=Decimal("5"),
+            stock=2,
+            image=create_test_image("item.png"),
+        )
 
     def test_guest_add_remove_and_cart_page(self):
         self.client.post(reverse("add_cart", args=[self.product.id]))

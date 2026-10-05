@@ -7,13 +7,22 @@ from taberna_cart.models import CartItem
 from taberna_product.models import Category, Product
 from taberna_profiles.models import UserProfile
 
+
 class CartApiViewsTest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        user = create_active_user(email="api-cart@example.com", username="api-cart", password="pass123", first_name="Api", last_name="Cart")
+        user = create_active_user(
+            email="api-cart@example.com",
+            username="api-cart",
+            password="pass123",
+            first_name="Api",
+            last_name="Cart",
+        )
         profile = UserProfile.objects.create(user=user)
         category = Category.objects.create(name="Api", slug="api-cart")
-        self.product = Product.objects.create(category=category, created_by=profile, name="Item", slug="api-item", price=Decimal("5"), stock=2)
+        self.product = Product.objects.create(
+            category=category, created_by=profile, name="Item", slug="api-item", price=Decimal("5"), stock=2
+        )
 
     def test_guest_add_get_and_delete(self):
         response = self.client.post(reverse("taberna_api_add_to_cart", args=[self.product.id]), {}, format="json")
@@ -26,7 +35,10 @@ class CartApiViewsTest(TestCase):
     def test_fully_removes_item(self):
         response = self.client.post(reverse("taberna_api_add_to_cart", args=[self.product.id]), {}, format="json")
         item = CartItem.objects.get()
-        url = reverse("taberna_api_remove_cart_item_fully", args=[self.product.id, item.id]) + f"?cart_id={response.data['cart_id']}"
+        url = (
+            reverse("taberna_api_remove_cart_item_fully", args=[self.product.id, item.id])
+            + f"?cart_id={response.data['cart_id']}"
+        )
         self.assertEqual(self.client.delete(url).status_code, 200)
 
     def test_authenticated_add_and_missing_remove(self):

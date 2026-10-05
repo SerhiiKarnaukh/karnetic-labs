@@ -7,12 +7,21 @@ from taberna_cart.models import CartItem
 from taberna_product.models import Category, Product
 from taberna_profiles.models import UserProfile
 
+
 class CartCounterTest(TestCase):
     def test_counts_user_items_and_skips_admin(self):
-        user = create_active_user(email="counter@example.com", username="counter", password="pass123", first_name="Counter", last_name="User")
+        user = create_active_user(
+            email="counter@example.com",
+            username="counter",
+            password="pass123",
+            first_name="Counter",
+            last_name="User",
+        )
         profile = UserProfile.objects.create(user=user)
         category = Category.objects.create(name="Counter", slug="counter")
-        product = Product.objects.create(category=category, created_by=profile, name="Item", slug="counter-item", price=Decimal("1"), stock=1)
+        product = Product.objects.create(
+            category=category, created_by=profile, name="Item", slug="counter-item", price=Decimal("1"), stock=1
+        )
         CartItem.objects.create(user=profile, product=product, quantity=3)
         request = RequestFactory().get("/")
         SessionMiddleware(lambda request: None).process_request(request)

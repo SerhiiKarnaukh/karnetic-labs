@@ -4,6 +4,7 @@ from django.utils.timezone import now
 from taberna_cart.models import Cart
 from taberna_cart.tasks.cart import delete_old_carts
 
+
 class CartTasksTest(TestCase):
     def test_deletes_only_old_carts(self):
         old = Cart.objects.create(cart_id="old")
