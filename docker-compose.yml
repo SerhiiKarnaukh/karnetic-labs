@@ -67,12 +67,26 @@ services:
       - redisdata:/data
 
   flower:
-    image: mher/flower
+    container_name: flower
     restart: always
+    build: .
+    command: celery -A portfolio flower -l info --address=0.0.0.0
     ports:
       - 5555:5555
+    volumes:
+      - .:/app
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - SQL_ENGINE=${SQL_ENGINE}
+      - SQL_HOST=db
+      - SQL_DATABASE=${SQL_DATABASE}
+      - SQL_USER=${SQL_USER}
+      - SQL_PASSWORD=${SQL_PASSWORD}
+      - CELERY_BROKER=redis://redis:6379/0
+    depends_on:
+      - redis
 
   celery:
     container_name: celery

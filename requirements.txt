@@ -13,6 +13,7 @@ djangorestframework-simplejwt==5.5.1
 djlint==1.49.9
 djoser==2.3.5
 flake8==7.5.0
+flower==2.2.0
 gunicorn==26.2.0
 openai==3.45.0
 pillow==13.0.0
